@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<command>
+    <create>
+        <tokenData_table>
+            CREATE TABLE IF NOT EXISTS tokenData (
+                user CHAR(255) NOT NULL,
+                domain CHAR(255) NOT NULL,
+                psk CHAR(255),
+                count INT UNSIGNED,
+                PRIMARY KEY (user,domain),
+            )
+        </tokenData_table>
+        <userData_table>
+            CREATE TABLE IF NOT EXISTS userData (
+                user CHAR(255) NOT NULL,
+                domain CHAR(255) NOT NULL,
+                password CHAR(255) NOT NULL,
+                PRIMARY KEY (user,domain),
+                FOREIGN KEY (user,domain) REFERENCES tokenData(user,domain),
+            )
+        </userData_table>
+        <msgToken_table>
+            CREATE TABLE IF NOT EXISTS msgToken (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                sender VARCHAR(1024) NOT NULL,
+                recipient CHAR(255) NOT NULL,
+                recipientDomain CHAR(255) NOT NULL,
+                token CHAR(31) NOT NULL,
+                FOREIGN KEY (recipient,recipientDomain) REFERENCES tokenData(user,domain)
+            )
+        </msgToken_table>
+    </create>
+    <set>
+        <tokenData>
+            INSERT INTO tokenData(user,domain)
+                VALUES(%s,%s)
+        </tokenData>
+        <userData>
+            INSERT INTO userData(user,domain,password)
+                VALUES(%s,%s,%s)
+        </userData>
+        <msgToken>
+            INSERT INTO msgToken(sender,recipient,recipientDomain,token)
+                VALUES(%s,%s,%s,%s)
+        </msgToken>
+    </set>
+    <get>
+        <tokenData_user>
+            SELECT user FROM tokenData
+                WHERE user=%s AND domain=%s
+        </tokenData_user>
+        <userData_password>
+            SELECT password FROM userData
+                WHERE user=%s AND domain=%s
+        </userData_password>
+        <tokenData_psk-count>
+            SELECT psk,count FROM tokenData
+                WHERE user=%s AND domain=%s
+        </tokenData_psk-count>
+        <msgToken_token-sender>
+            SELECT token,sender FROM msgToken
+                WHERE recipient=%s AND recipientDomain=%s
+        </msgToken_token-sender>
+        <msgToken_token>
+            SELECT token FROM msgToken
+                WHERE recipient=%s AND recipientDomain=%s AND sender=%s
+        </msgToken_token>
+        <msgToken_all>
+            SELECT * FROM msgToken
+                WHERE sender=%s AND recipient=%s AND recipientDomain=%s AND token=%s
+        </msgToken_all>
+    </get>
+    <reset>
+        <userData_password>
+            UPDATE userData SET password=%s
+                WHERE user=%s AND domain=%s
+        </userData_password>
+        <tokenData_psk-count>
+            UPDATE tokenData SET psk=%s, count=%s
+                WHERE user=%s AND domain=%s
+        </tokenData_psk-count>
+    </reset>
+    <delete>
+        <msgToken>
+            DELETE FROM msgToken
+                WHERE recipient=%s AND recipientDomain=%s AND token=%s
+        </msgToken>
+    </delete>
+</command>
