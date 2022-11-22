@@ -7,7 +7,7 @@
                 domain CHAR(255) NOT NULL,
                 psk CHAR(255),
                 count INT UNSIGNED,
-                PRIMARY KEY (user,domain),
+                PRIMARY KEY (user,domain)
             )
         </tokenData_table>
         <userData_table>
@@ -16,7 +16,7 @@
                 domain CHAR(255) NOT NULL,
                 password CHAR(255) NOT NULL,
                 PRIMARY KEY (user,domain),
-                FOREIGN KEY (user,domain) REFERENCES tokenData(user,domain),
+                FOREIGN KEY (user,domain) REFERENCES tokenData(user,domain)
             )
         </userData_table>
         <msgToken_table>

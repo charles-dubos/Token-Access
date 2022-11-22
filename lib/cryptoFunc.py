@@ -4,23 +4,23 @@ from cryptography.hazmat.primitives import twofactor, hashes, serialization
 from importlib import import_module
 import base64
 
-from lib.utils import loadConfFile
+from lib.utils import CONFIG, LOGGER
 
 
 # CONFIGURATION LOADING
-CONF=loadConfFile('CRYPTO')
 
-ECDH=CONF.get('ECDH').lower()
+ECDH=(CONFIG.get('CRYPTO', 'ECDH')).lower()
 mod = import_module('cryptography.hazmat.primitives.asymmetric.'+ECDH)
 ECPrivateKey=getattr(mod, ECDH.capitalize()+"PrivateKey")
 ECPublicKey=getattr(mod, ECDH.capitalize()+"PublicKey")
+LOGGER.debug(f"{ECDH} Diffie-Hellman set.")
 
-hashFunc = getattr(hashes, CONF.get('HashFunction') )
-HOTPLen = CONF.getint('HashLength')
-BASE = CONF.get('ExportEncoding')
-
+hashFunc = getattr(hashes, CONFIG.get('CRYPTO', 'HashFunction') )
+HOTPLen = int(CONFIG.get('CRYPTO', 'HashLength'))
+BASE = CONFIG.get('CRYPTO', 'ExportEncoding')
 encoder = getattr(base64, BASE+'encode')
 decoder = getattr(base64, BASE+'decode')
+LOGGER.debug(f"{BASE} export encoding and decoding base set.")
 
 
 # PSK structure for ECDH

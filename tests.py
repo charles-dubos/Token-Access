@@ -1,12 +1,74 @@
-import unittest
+import unittest, os
+from configparser import RawConfigParser
 
+
+os.environ['TKNACS_PATH'] = os.path.dirname(os.path.abspath(__file__))
+with os.popen('printf "$TKNACS_PATH/tokenAccess.conf"') as confPath:
+    os.environ['TKNACS_CONF'] = confPath.read()
+
+
+# PROJECT PERIMETER
+## Creation of testing environment
+from lib.utils import CONFIG, LOGGER, EmailAddress, loggingReload
+with os.popen('printf "'+CONFIG.get('WEB_API', 'logging')[:-4]+'_test.log"') as logPath:
+    loggingReload(
+        filename=logPath.read(),
+        mode='w',
+        logLevel="DEBUG"
+    )
+
+
+# Tests for utils lib
+from lib.utils import LOGGER
+print(LOGGER.handlers, LOGGER)
+LOGGER.critical("-= BEGINING TESTS =-")
+
+class tests_1_utils(unittest.TestCase):
+
+    def test_1_logger(self):
+        """Verification of logging levels
+        """
+        LOGGER.debug("Test DEBUG level")
+        LOGGER.info("Test INFO level")
+        LOGGER.warning("Test WARNING level")
+        LOGGER.error("Test ERROR level")
+        LOGGER.critical("Test CRITICAL level")
+
+    def test_2_confLoad(self):
+        """Verification of configuration loading
+        """
+        pathFile=os.environ.get('TKNACS_PATH')
+        confFile=os.environ.get('TKNACS_CONF')
+        self.assertIsNotNone(confFile)
+        self.assertIn(CONFIG.get("DATABASE", "type"), ("sqlite3", "mysql"))
+
+    def test_3_EmailParser(self):
+        """Verification of the email parsing function
+        """
+        email1 = EmailAddress()
+        email2 = EmailAddress()
+        email1.parser("toto@test.com")
+        email2.parser("testing it <toto+testDextension@test.com>")
+        self.assertEqual(email1.user, email2.user)
+        self.assertEqual(email1.domain, email2.domain)
+        self.assertEqual(email2.name, "testing it ")
+        self.assertListEqual(email2.extensions, ["testDextension"])
+
+        self.assertRaises(SyntaxError, email2.parser, 'FalseAddressError')
+        self.assertRaises(SyntaxError, email2.parser, 'bad constructed address <test@toto.com')
+        self.assertRaises(SyntaxError, email2.parser, 'test@toto.com>')
+
+
+# Tests for cryptoFunc lib
 import lib.cryptoFunc as cryptoFunc
 
-class cryptoTests(unittest.TestCase):
+class tests_2_crypto(unittest.TestCase):
 
-    def test_hash(self):
-        hash1 = HashText("plainText")
-        hash2 = HashText("plainText2")
+    def test_1_hash(self):
+        """Verifications on the hash function
+        """
+        hash1 = cryptoFunc.HashText("plainText")
+        hash2 = cryptoFunc.HashText("plainText2")
 
         self.assertEqual(type(hash1.getHash()), str)
 
@@ -15,8 +77,9 @@ class cryptoTests(unittest.TestCase):
         self.assertFalse(hash1.isSame(hash2.getHash()))
 
 
-    def test_psk(self):
-        # ECDH exchange test
+    def test_2_ECDH_exchange(self):
+        """Checks the generation of a shared secret with ECDH
+        """
         alicePSK = cryptoFunc.PreSharedKey()
         serverPSK = cryptoFunc.PreSharedKey()
         user="alice"
@@ -32,7 +95,9 @@ class cryptoTests(unittest.TestCase):
         self.assertEqual(serverPSK.PSK, alicePSK.PSK)
 
 
-    def test_hotp(self):
+    def test_3_HOTP(self):
+        """Verifies the HOTP generation
+        """
         alicePSK = cryptoFunc.PreSharedKey()
         serverPSK = cryptoFunc.PreSharedKey()
         user="alice"
@@ -41,124 +106,136 @@ class cryptoTests(unittest.TestCase):
             recipientPubKey=alicePSK.exportPubKey()
         )
 
-        firstHotps = [ getHotp(serverPSK.PSK,count) for count in range(10)]
+        firstHotps = [ cryptoFunc.getHotp(serverPSK.PSK,count) for count in range(10)]
         for count in range(9):
             self.assertTrue(len(firstHotps[count])==6)
-            self.assertNotIn(firstHotps[count], firstHotps[count:])
+            self.assertNotIn(firstHotps[count], firstHotps[count+1:])
 
 
+# Tests for dbManage lib
+import lib.dbManage as dbManage
+
+class tests_3_database(unittest.TestCase):
+    # Simple SQLite3 databbase
+    dbName_sqlite3 = "TKNACS_test.db"
+
+    # Simple SQL database
+    dbName_mySQL = 'TKNACS_test'
+
+    # Minimal SQLite3 database (no domain specified)
+    dbNameNoDomain = "TKNACS_testNoDomain.db"
+
+    def __init__(self, *args, **kwargs):
+        super(dbTests, self).__init__(*args, **kwargs)
+        if os.path.exists(self.dbName_sqlite3):
+            os.remove(self.dbName_sqlite3)
+        if os.path.exists(self.dbNameNoDomain):
+            os.remove(self.dbNameNoDomain)
+
+    def setUp(self):
+        self.dbTest_sqlite3 = dbManage.sqliteDB(dbName=self.dbName_sqlite3, defaultDomain="domain1.loc")
+        self.dbTestNoDomain = dbManage.sqliteDB(dbName=self.dbNameNoDomain)
+        self.dbTest_mysql = dbManage.mysqlDB(dbName=self.dbName_mySQL, defaultDomain="domain1.loc")
 
 
-# class dbTests(unittest.TestCase):
-#     dbName = "test.db"
-#     dbTest = None
-#     dbName_mySQL = 'test'
+    def test_1_connection(self):
+        """Verifications of the database plugins (connector/cursor definitions)
+        """
+        self.assertIsNotNone(self.dbTest_sqlite3.connector)
+        self.assertIsNotNone(self.dbTest_sqlite3.cursor)
 
-#     dbNameNoDomain = "testNoDomain.db"
-#     dbTestNoDomain = None
+        self.assertIsNotNone(self.dbTest_mysql.connector)
+        self.assertIsNotNone(self.dbTest_mysql.cursor)
 
-
-#     def __init__(self, *args, **kwargs):
-#         super(dbTests, self).__init__(*args, **kwargs)
-#         if os.path.exists(self.dbName):
-#             os.remove(self.dbName)
-#         if os.path.exists(self.dbNameNoDomain):
-#             os.remove(self.dbNameNoDomain)
+        self.assertIsNotNone(self.dbTestNoDomain.connector)
+        self.assertIsNotNone(self.dbTestNoDomain.cursor)
 
 
-#     def setUp(self):
-#         self.dbTest_sqlite = sqliteDB(dbName=self.dbName, defaultDomain="DOMAIN1")
-#         self.dbTestNoDomain = sqliteDB(dbName=self.dbNameNoDomain)
-#         self.dbTest_mysql = mysqDB(dbName=self.dbName_mySQL)
+    def test_2_emptyDataBase(self):
+        """Verifications on empty database
+        """
+        self.assertFalse(self.dbTest_sqlite3.isInDatabase("user"))
+        self.assertIsNone(self.dbTest_sqlite3.getPassword("user"))
+
+        self.assertFalse(self.dbTest_mysql.isInDatabase("user"))
+        self.assertIsNone(self.dbTest_mysql.getPassword("user"))
 
 
-#     def test_connected(self):
-#         self.assertIsNotNone(self.dbTest_sqlite.connector)
-#         self.assertIsNotNone(self.dbTest_sqlite.cursor)
+    def test_3_userData_sqlite3(self):
+        """Verifications for user creation in sqlite3 database & password
+        """
+        self.dbTest_sqlite3.addUser(user="user", password="password")
+        self.assertTrue(self.dbTest_sqlite3.isInDatabase("user"))
+        self.assertFalse(self.dbTest_sqlite3.isInDatabase("user", "DOMAIN2"))
+        self.assertEqual(self.dbTest_sqlite3.getPassword("user"), "password")
 
-#         self.assertIsNotNone(self.dbTest_mysql.connector)
-#         self.assertIsNotNone(self.dbTest_mysql.cursor)
+        self.dbTest_sqlite3.addUser(user="user", domain="DOMAIN2", password="password2")
+        self.assertTrue(self.dbTest_sqlite3.isInDatabase("user", "DOMAIN2"))
+        self.assertEqual(self.dbTest_sqlite3.getPassword("user", domain="DOMAIN2"), "password2")
 
-#         self.assertIsNotNone(self.dbTestNoDomain.connector)
-#         self.assertIsNotNone(self.dbTestNoDomain.cursor)
+        self.dbTest_sqlite3.changePassword(user="user", password='password2')
+        self.assertEqual(self.dbTest_sqlite3.getPassword("user"), "password2")
 
+    def test_3_userData_mysql(self):
+        """Verifications for user creation in mysql database & password
+        """
+        self.dbTest_mysql.addUser(user="user", password="password")
+        self.assertEqual(self.dbTest_mysql.getPassword("user"), "password")
 
-#     def test_dataBase(self):
-#         # Test for user creation
-#         self.assertFalse(self.dbTest_sqlite.isInDatabase("user"))
-#         self.assertIsNone(self.dbTest_sqlite.getPassword("user"))
+        self.dbTest_mysql.addUser(user="user", domain="DOMAIN2", password="password2")
+        self.assertEqual(self.dbTest_mysql.getPassword("user", domain="DOMAIN2"), "password2")
 
-#         self.assertFalse(self.dbTest_mysql.isInDatabase("user"))
-#         self.assertIsNone(self.dbTest_mysql.getPassword("user"))
+        self.dbTest_mysql.changePassword(user="user", password='password2')
+        self.assertEqual(self.dbTest_mysql.getPassword("user"), "password2")
 
-
-#     def test_userData(self):
-#         self.dbTest_sqlite.addUser(user="user", password="password")
-#         self.assertTrue(self.dbTest_sqlite.isInDatabase("user"))
-#         self.assertFalse(self.dbTest_sqlite.isInDatabase("user", "DOMAIN2"))
-#         self.assertEqual(self.dbTest_sqlite.getPassword("user"), "password")
-
-#         self.dbTest_mysql.addUser(user="user", password="password")
-#         self.assertEqual(self.dbTest_mysql.getPassword("user"), "password")
-
-#         self.dbTest_sqlite.addUser(user="user", domain="DOMAIN2", password="password2")
-#         self.assertTrue(self.dbTest_sqlite.isInDatabase("user", "DOMAIN2"))
-#         self.assertEqual(self.dbTest_sqlite.getPassword("user", domain="DOMAIN2"), "password2")
-
-#         self.dbTest_mysql.addUser(user="user", domain="DOMAIN2", password="password2")
-#         self.assertEqual(self.dbTest_mysql.getPassword("user", domain="DOMAIN2"), "password2")
-
-#         self.dbTestNoDomain.addUser(user="user", domain="DOMAIN1", password="password")
-#         self.assertRaises(TypeError, self.dbTestNoDomain.isInDatabase, "password")
-
-#         # testing Password
-#         self.dbTest_sqlite.changePassword(user="user", password='password2')
-#         self.assertEqual(self.dbTest_sqlite.getPassword("user"), "password2")
-
-#         self.dbTest_mysql.changePassword(user="user", password='password2')
-#         self.assertEqual(self.dbTest_mysql.getPassword("user"), "password2")
+    def test_3_userData_noDomain(self):
+        """Verifications for user creation in database with no domain specified
+        """
+        self.dbTestNoDomain.addUser(user="user", domain="DOMAIN1", password="password")
+        self.assertRaises(TypeError, self.dbTestNoDomain.isInDatabase, "password")
 
 
-#     def test_hotp(self):
-#         self.dbTest_sqlite.addUser(user="tokenUser", password="password")
+    def test_4_HOTPAdding(self):
+        """Tests the recording of HOTP data (PSK & counter)
+        """
+        self.dbTest_sqlite3.addUser(user="tokenUser", password="password")
 
-#         # Populate PSK
-#         self.assertIsNone(self.dbTest_sqlite.getHotpData(user="tokenUser")[0])
-#         self.dbTest_sqlite.updatePsk(user="tokenUser", psk="PreSharedKey", count=0)
-#         psk,count = self.dbTest_sqlite.getHotpData(user="tokenUser")
-#         self.assertEqual(psk, "PreSharedKey")
-#         self.assertEqual(count, 0)
-
-    
-#     def test_token(self):
-#         self.dbTest_sqlite.addUser(user="tokenUser2", password="password2")
-
-#         # Create new token
-#         self.dbTest_sqlite.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="123456")
-#         self.assertTrue(self.dbTest_sqlite.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123456"))
-#         self.assertFalse(self.dbTest_sqlite.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123455"))
-
-#         self.dbTest_sqlite.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="654321")
-#         self.assertEqual(len(self.dbTest_sqlite.getAllTokensUser(user="tokenUser2")),2)
-#         self.assertEqual(len(self.dbTest_sqlite.getSenderTokensUser(user="tokenUser2", sender="sender@domain2.loc")),2)
-
-#         # Token deletion
-#         self.dbTest_sqlite.deleteToken(user="tokenUser2", token="123456")
-#         self.assertFalse(self.dbTest_sqlite.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123456"))
-#         self.assertTrue(self.dbTest_sqlite.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="654321"))
+        # Populate PSK
+        self.assertIsNone(self.dbTest_sqlite3.getHotpData(user="tokenUser")[0])
+        self.dbTest_sqlite3.updatePsk(user="tokenUser", psk="PreSharedKey", count=0)
+        psk,count = self.dbTest_sqlite3.getHotpData(user="tokenUser")
+        self.assertEqual(psk, "PreSharedKey")
+        self.assertEqual(count, 0)
 
     
-#     def __del__(self, *args, **kwargs):
-#         os.remove(self.dbName)
-#         os.remove(self.dbNameNoDomain)
+    def test_token(self):
+        """Verification of token recording & requesting
+        """
+        self.dbTest_sqlite3.addUser(user="tokenUser2", password="password2")
 
+        # Create new token
+        self.dbTest_sqlite3.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="123456")
+        self.assertTrue(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123456"))
+        self.assertFalse(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123455"))
+
+        self.dbTest_sqlite3.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="654321")
+        self.assertEqual(len(self.dbTest_sqlite3.getAllTokensUser(user="tokenUser2")),2)
+        self.assertEqual(len(self.dbTest_sqlite3.getSenderTokensUser(user="tokenUser2", sender="sender@domain2.loc")),2)
+
+        # Token deletion
+        self.dbTest_sqlite3.deleteToken(user="tokenUser2", token="123456")
+        self.assertFalse(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123456"))
+        self.assertTrue(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="654321"))
+
+    
+    def __del__(self, *args, **kwargs):
+        os.remove(self.dbName_sqlite3)
+        os.remove(self.dbNameNoDomain)
+
+        self.dbTest_mysql.cursor.execute(f"DROP DATABASE {self.dbName_mySQL}")
+        self.dbTest_mysql.connector.commit()
 
 
 if __name__ == "__main__":
-    sqliteDB(dbName=CONF.get('SQLdatabase'), defaultDomain="DOMAIN1")    
 
-    unittest.main()
-
-
-if __name__ == "__main__":
-    unittest.main()
+    unittest.main(exit=False)
