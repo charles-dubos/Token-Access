@@ -1,5 +1,11 @@
+# Common dependances
+cryptography
+mysql-connector-python
+
+# WebAPI dependances
 fastapi
 python-multipart
 uvicorn
-cryptography
-mysql-connector-python
+
+# SMTP server dependances
+aiosmtpd

@@ -1,6 +1,23 @@
+"""Policy implementation:
+   ----------------------
+A module that implement the class for token policy management.
 
+Returns:
+    bool: policy allowing or not
+"""
 
 class Policy:
+    """Class that agglomerates all the possible rules for a mail token request.
+    This includes:
+    - innerPolicy: rules implemented to all user of the domain
+    - userPolicy: rules set for the specified user
+    - [TODO] organizational policy: policy organizational-specific
+
+    NB: This class should not be instantiated. It gives all its results when called.
+
+    Returns:
+        boolean: Result of the agreement process
+    """
     _sender=None
     _recipent = None
 

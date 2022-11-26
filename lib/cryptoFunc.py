@@ -31,7 +31,7 @@ class PreSharedKey:
         self._pvtKey=ECPrivateKey.generate()
         self.baseEncode=baseEncode
 
-    def exportPubKey(self):
+    def exportPubKey(self) -> str:
         return self.baseEncode(
             self._pvtKey.public_key().public_bytes(
                 encoding=serialization.Encoding.Raw,
@@ -39,7 +39,7 @@ class PreSharedKey:
             )
         ).decode('ascii')
 
-    def generate(self, user:str, recipientPubKey: str, baseDecode=decoder):
+    def generate(self, user:str, recipientPubKey: str, baseDecode=decoder) -> str:
         bytesPubKey = ECPublicKey.from_public_bytes(
                 baseDecode(recipientPubKey.encode('ascii'))
             )
@@ -62,18 +62,18 @@ class HashText:
         self.plainText=plainText.encode('utf-8')
         self.baseEncode=baseEncode
     
-    def getHash(self):
+    def getHash(self) -> str:
         digest = hashes.Hash( algorithm=hashFunc() )
         digest.update(self.plainText)
         hashBytes = digest.finalize()
         return self.baseEncode(hashBytes).decode('ascii')
     
-    def isSame(self, hashStr:str):
+    def isSame(self, hashStr:str) -> bool:
         return (self.getHash() == hashStr)
     
 
 # HOTP function
-def getHotp(preSharedKey: str, count: int, baseDecode=decoder):
+def getHotp(preSharedKey: str, count: int, baseDecode=decoder) -> str:
     """Compute HOTP with the given arguments
 
     Args:

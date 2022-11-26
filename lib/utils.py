@@ -1,15 +1,38 @@
+"""Useful functions for TokenAcces:
+   --------------------------------
+This module contains useful functions:
+- EmailAdress class to parse email addresses
+- Config class to manage the configuration file
+- ParseXML class to parse XML librairies that containts SQL files
+It also manage a centralized logging when the module is imported.
+"""
+
 from configparser import ConfigParser
 from os.path import exists
 from os import environ, popen
 from xml.dom.minidom import parse as domParser
 import logging
 
+
 DEFAULT_CONFIG="""
-[WEB_API]
+[GLOBAL]
 ; Enter domains name managed by the HOTP service separated with ,
 domains=
-logging=$TKNACS_PATH/file.log
+logging=${TKNACS_PATH}/file.log
 log_level=WARNING
+
+[WEB_API]
+; API host:port and SSL HTTPS connection parameters
+host=127.0.0.1
+port=8443
+ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessAPI.pem
+ssl_certfile=${TKNACS_PATH}/certs/TokenAccessAPI.pem
+
+[SMTP_SERVER]
+host=127.0.0.1
+port=465
+ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessSMTP.pem
+ssl_certfile=${TKNACS_PATH}/certs/TokenAccessSMTP.pem
 
 [DATABASE]
 ; You can choose to use sqlite3 or mysql for database: 
@@ -34,7 +57,7 @@ HashLength=6
 ; ExportEncoding must be supported by base64:
 ExportEncoding=b64
 """
-LOG_FORMAT = '%(levelname)s:%(asctime)s\t%(message)s'
+
 
 class EmailAddress:
     extensions=[]
@@ -53,7 +76,7 @@ class EmailAddress:
         self.extensions=extensions
         self.domain=domain
     
-    def merger(self):
+    def merger(self) -> str:
         """Returns string-formatted e-mail address.
         (NB: No check are done during merging)
 
@@ -133,10 +156,24 @@ class Config:
 
     
     def get(self, category:str, item:str):
-        return (self._config[category])[item]
+        output = (self._config[category])[item]
+
+        # Bash interpretation of environment variables if $ present
+        if output.find('$') != -1:
+            retMsg = 'Possible env var identified in "' + output + '" : '
+            try:
+                with popen('printf "' + output + '"') as path:
+                    output = path.read()
+                retMsg = retMsg + 'converted to "' + output + '"'
+            except:
+                retMsg = retMsg + 'unexploitable.'
+            finally:
+                (print if "LOGGER" not in locals() else LOGGER.debug)(retMsg)
+
+        return output
 
 
-class parseXML:
+class ParseXML:
     def __init__(self,xmlFile:str):
         """Parses an XML file starting with a <command> data container.
 
@@ -145,7 +182,7 @@ class parseXML:
         """
         self._dom=domParser(file=xmlFile).getElementsByTagName('command')[0]
     
-    def extract(self,path:str):
+    def extract(self,path:str) -> str:
         """Get the element of the parsed XML file.
 
         Args:
@@ -161,7 +198,11 @@ class parseXML:
         return dom.firstChild.nodeValue
 
 
-def loggingReload(filename:str, logLevel:str, mode = 'a'):
+# Logging management
+
+LOG_FORMAT = '%(levelname)s:%(asctime)s\t%(message)s'
+
+def loggingReload(filename:str, logLevel:str, mode = 'a', logFormat=LOG_FORMAT):
     """Redirects the LOGGER with a new filename and an new logLevel 
 
     Args:
@@ -183,20 +224,18 @@ def loggingReload(filename:str, logLevel:str, mode = 'a'):
     newHandler = logging.FileHandler(filename=filename, encoding='utf-8', mode=mode)
     newHandler.setLevel(LOGLEVELS[logLevel])
     newHandler.setFormatter(
-        logging.Formatter(LOG_FORMAT)
+        logging.Formatter(logFormat)
     )
     LOGGER.handlers[0]=newHandler
 
-
-# Configuration loading
+## Configuration loading
 CONFIG = Config(environ.get("TKNACS_CONF"))
 
-# Logging
-with popen('printf "' + CONFIG.get(category='WEB_API', item='logging') + '"') as loggingPath:
-    logging.basicConfig(
-        filename=loggingPath.read(), 
-        level=CONFIG.get(category='WEB_API', item='log_level'),
-        encoding='utf-8',
-        format=LOG_FORMAT
-    )
-    LOGGER = logging.getLogger()
+## Logging default settings
+logging.basicConfig(
+    filename=CONFIG.get(category='GLOBAL', item='logging'), 
+    level=CONFIG.get(category='GLOBAL', item='log_level'),
+    encoding='utf-8',
+    format=LOG_FORMAT
+)
+LOGGER = logging.getLogger()

@@ -1,26 +1,35 @@
-import unittest, os
+"""Test module for TokenAccess:
+   ----------------------------
+Impements unit tests for:
+- lib.utils
+- lib.cryptoFunc
+- lib.dbManage
+- [TODO]lib.policy
+"""
+
+import unittest
+from os import environ, remove
+from os.path import dirname, abspath, exists
 from configparser import RawConfigParser
 
 
-os.environ['TKNACS_PATH'] = os.path.dirname(os.path.abspath(__file__))
-with os.popen('printf "$TKNACS_PATH/tokenAccess.conf"') as confPath:
-    os.environ['TKNACS_CONF'] = confPath.read()
+environ['TKNACS_PATH'] = dirname(abspath(__file__))
+environ['TKNACS_CONF'] = environ["TKNACS_PATH"] + "/tokenAccess.conf"
 
 
 # PROJECT PERIMETER
 ## Creation of testing environment
 from lib.utils import CONFIG, LOGGER, EmailAddress, loggingReload
-with os.popen('printf "'+CONFIG.get('WEB_API', 'logging')[:-4]+'_test.log"') as logPath:
-    loggingReload(
-        filename=logPath.read(),
-        mode='w',
-        logLevel="DEBUG"
-    )
+loggingReload(
+    filename=CONFIG.get('WEB_API', 'logging')[:-4]+'_test.log',
+    mode='w',
+    logLevel="DEBUG"
+)
 
 
 # Tests for utils lib
-from lib.utils import LOGGER
-print(LOGGER.handlers, LOGGER)
+#from lib.utils import LOGGER
+#print(LOGGER.handlers, LOGGER)
 LOGGER.critical("-= BEGINING TESTS =-")
 
 class tests_1_utils(unittest.TestCase):
@@ -37,8 +46,10 @@ class tests_1_utils(unittest.TestCase):
     def test_2_confLoad(self):
         """Verification of configuration loading
         """
-        pathFile=os.environ.get('TKNACS_PATH')
-        confFile=os.environ.get('TKNACS_CONF')
+        mainPath=environ.get('TKNACS_PATH')
+        self.assertTrue(exists(mainPath))
+        confFile=environ.get('TKNACS_CONF')
+        self.assertTrue(exists(confFile))
         self.assertIsNotNone(confFile)
         self.assertIn(CONFIG.get("DATABASE", "type"), ("sqlite3", "mysql"))
 
@@ -126,11 +137,11 @@ class tests_3_database(unittest.TestCase):
     dbNameNoDomain = "TKNACS_testNoDomain.db"
 
     def __init__(self, *args, **kwargs):
-        super(dbTests, self).__init__(*args, **kwargs)
-        if os.path.exists(self.dbName_sqlite3):
-            os.remove(self.dbName_sqlite3)
-        if os.path.exists(self.dbNameNoDomain):
-            os.remove(self.dbNameNoDomain)
+        super(tests_3_database, self).__init__(*args, **kwargs)
+        if exists(self.dbName_sqlite3):
+            remove(self.dbName_sqlite3)
+        if exists(self.dbNameNoDomain):
+            remove(self.dbNameNoDomain)
 
     def setUp(self):
         self.dbTest_sqlite3 = dbManage.sqliteDB(dbName=self.dbName_sqlite3, defaultDomain="domain1.loc")
@@ -214,11 +225,11 @@ class tests_3_database(unittest.TestCase):
         self.dbTest_sqlite3.addUser(user="tokenUser2", password="password2")
 
         # Create new token
-        self.dbTest_sqlite3.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="123456")
+        self.dbTest_sqlite3.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="123456", counter=0)
         self.assertTrue(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123456"))
         self.assertFalse(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123455"))
 
-        self.dbTest_sqlite3.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="654321")
+        self.dbTest_sqlite3.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="654321", counter=0)
         self.assertEqual(len(self.dbTest_sqlite3.getAllTokensUser(user="tokenUser2")),2)
         self.assertEqual(len(self.dbTest_sqlite3.getSenderTokensUser(user="tokenUser2", sender="sender@domain2.loc")),2)
 
@@ -229,8 +240,8 @@ class tests_3_database(unittest.TestCase):
 
     
     def __del__(self, *args, **kwargs):
-        os.remove(self.dbName_sqlite3)
-        os.remove(self.dbNameNoDomain)
+        remove(self.dbName_sqlite3)
+        remove(self.dbNameNoDomain)
 
         self.dbTest_mysql.cursor.execute(f"DROP DATABASE {self.dbName_mySQL}")
         self.dbTest_mysql.connector.commit()

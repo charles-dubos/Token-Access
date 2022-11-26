@@ -1,11 +1,26 @@
+"""Web API for Token Access:
+   -------------------------
+
+This API simulates a management canal to :
+- Request a HOTP token to send a message to a recipient managed by this system
+- (Re-)generate a HOTP seed
+
+Raises:
+    FileNotFoundError: DB not acessible
+    HTTPException: (406) Token request not allowed
+    HTTPException: (418) Bad formatted email address
+    HTTPException: (400) Incorrect name or password
+"""
+
 from fastapi import FastAPI, HTTPException, Form
-import os, logging
+from os import environ
+from os.path import dirname, abspath
+
 
 # PROJECT PERIMETER
 ## Creation of environment var for project
-os.environ['TKNACS_PATH'] = os.path.dirname(os.path.abspath(__file__))
-with os.popen('printf "$TKNACS_PATH/tokenAccess.conf"') as confPath:
-    os.environ['TKNACS_CONF'] = confPath.read()
+environ['TKNACS_PATH'] = dirname(abspath(__file__))
+environ['TKNACS_CONF'] = environ["TKNACS_PATH"] + "/tokenAccess.conf"
 
 
 # CONFIGURATION
@@ -16,7 +31,7 @@ from lib.utils import CONFIG, LOGGER, EmailAddress
 
 ## WebAPI variables
 
-DOMAINS = CONFIG.get('WEB_API','domains').split(',')
+DOMAINS = CONFIG.get('GLOBAL','domains').split(',')
 DBTYPE = CONFIG.get('DATABASE','type')
 DATABASE = CONFIG.get('DATABASE','SQLdatabase')
 
@@ -80,18 +95,13 @@ async def requestToken(sender: str, recipient: str):
             preSharedKey=preSharedKey,
             count=count)
         
-        ## Adding the record to token database and count increment
+        ## Adding the record to token database
         database.setSenderTokenUser(
             user=recipientAddr.user, 
             domain=recipientAddr.domain,
             sender=sender, 
+            count= count,
             token=hotp
-        )
-        database.updatePsk(
-            user=recipientAddr.user, 
-            domain=recipientAddr.domain,
-            psk=preSharedKey,
-            count=(count + 1)
         )
 
         return {

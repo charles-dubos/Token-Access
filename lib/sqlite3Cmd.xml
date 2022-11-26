@@ -81,6 +81,10 @@
             UPDATE tokenData SET psk=?, count=?
                 WHERE user=? AND domain=?
         </tokenData_psk-count>
+        <tokendata_count>
+            UPDATE tokendata SET count=?
+                WHERE user=? AND domain=?
+        </tokendata_count>
     </reset>
     <delete>
         <msgToken>
