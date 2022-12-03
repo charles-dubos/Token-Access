@@ -87,6 +87,14 @@
         </tokendata_count>
     </reset>
     <delete>
+        <userData>
+            DELETE FROM userData
+                WHERE user=? AND domain=?
+        </userData>
+        <tokenData>
+            DELETE FROM tokenData
+                WHERE user=? AND domain=?
+        </tokenData>
         <msgToken>
             DELETE FROM msgToken
                 WHERE recipient=? AND recipientDomain=? AND token=?

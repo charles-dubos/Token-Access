@@ -13,19 +13,10 @@ Raises:
 """
 
 from fastapi import FastAPI, HTTPException, Form
-from os import environ
-from os.path import dirname, abspath
-
-
-# PROJECT PERIMETER
-## Creation of environment var for project
-environ['TKNACS_PATH'] = dirname(abspath(__file__))
-environ['TKNACS_CONF'] = environ["TKNACS_PATH"] + "/tokenAccess.conf"
 
 
 # CONFIGURATION
 ## Loading conf file
-
 from lib.utils import CONFIG, LOGGER, EmailAddress
 
 
@@ -106,7 +97,11 @@ async def requestToken(sender: str, recipient: str):
 
         return {
             "token": hotp,
-        "allowed_for": {"from": sender, "to": recipient}}
+            "allowed_for": {
+                "from": sender,
+                "to": recipient,
+                }
+            }
     except ValueError:
         raise HTTPException(
             status_code=418,
@@ -144,7 +139,7 @@ async def regenerateHotpSeed(username: str = Form(), password: str = Form(), pub
             detail="Incorrect username or password"
         )
     savedPassword = database.getPassword(user=userAddr.user, domain=userAddr.domain)
-    if not cryptoFunc.HashText(plainText=password).isSame(hashStr=savedPassword):
+    if not cryptoFunc.HashText(password).isSame(hashStr=savedPassword):
         raise HTTPException(
             status_code=400,
             detail="Incorrect username or password"
@@ -169,4 +164,7 @@ async def regenerateHotpSeed(username: str = Form(), password: str = Form(), pub
         count=counter
     )
 
-    return {"user": username, "pubKey": serverPSK.exportPubKey(), "counter": counter, "psk": serverPSK.PSK}
+    return {"user": username,
+        "pubKey": serverPSK.exportPubKey(),
+        "counter": counter,
+        "psk": serverPSK.PSK}

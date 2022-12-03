@@ -3,6 +3,7 @@
 Mysql and sqlite3 database management module, containing:
 - mysqlDB and sqliteDB classes implementing the folowing methods:
   > addUser: adds a user to the database
+  > delUser: removes a user in the database
   > isInDatabase: verifies if a user is present in database
   > changePassword: changes the password of the specified user
   > getPassword: get the password for specified user
@@ -97,13 +98,34 @@ class _SQLDB(ABC):
             domain (str, optional): user domain. Defaults to None.
         """
         domain = self._domain(domain=domain)
-        self._execSql(
+        self._setSql(
             self._sqlCmd.extract("set/tokenData"),
             (user,domain)
         )
         self._setSql(
             self._sqlCmd.extract("set/userData"),
             (user, domain, password)
+        )
+
+    
+    def delUser(self, user: str, domain:str=None):
+        """Del a user in database on 2 tables:
+        - In tokenData (table that manages psk and count)
+        - In userData (table that manages users)
+
+        Args:
+            user (str): user name
+            password (str): user password
+            domain (str, optional): user domain. Defaults to None.
+        """
+        domain = self._domain(domain=domain)
+        self._setSql(
+            self._sqlCmd.extract("delete/userData"),
+            (user, domain)
+        )
+        self._setSql(
+            self._sqlCmd.extract("delete/tokenData"),
+            (user,domain)
         )
 
 

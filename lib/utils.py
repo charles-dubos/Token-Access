@@ -71,39 +71,16 @@ class EmailAddress:
             extensions (list, optional): email adress extensions. Defaults to empty list.
             domain (str, optional): email adress domain. Defaults to None.
         """
-        self.name=name
+        self.displayedName=name
         self.user=user
         self.extensions=extensions
         self.domain=domain
+
     
-    def merger(self) -> str:
-        """Returns string-formatted e-mail address.
-        (NB: No check are done during merging)
-
-        Raises:
-            TypeError: user and domain must be defined 
-
-        Returns:
-            str: e-mail address
-        """
-        if user is None or domain is None:
-            raise TypeError("user and domain cannot be 'None'")
-        
-        output = self.user
-        for extension in extensions:
-            output = output + "+" + extension
-        output = self.domain
-
-        if name is not None:
-            output = name + "<" + output + ">"
-
-        return output
-
-
     def parser(self,address: str):
         """Parses an email address given the folowing formats: 
         - user[+extension[s]]@domain.
-        - name<user+extensions@domain>.
+        - displayedName<user+extensions@domain>.
 
         Args:
             address (str): e-mail address (explicit or with <>delimiters)
@@ -123,7 +100,7 @@ class EmailAddress:
                 raise SyntaxError
             if address.find('>', address.find('<')) == -1:
                 raise SyntaxError
-            self.name = address[:address.find('<')]
+            self.displayedName = address[:address.find('<')]
             address = address[address.find('<')+1:
                 address.find('>', address.find('<'))]
 
@@ -136,6 +113,43 @@ class EmailAddress:
         self.extensions = splitUsername[1:]
         self.domain = splitAddress[1]
         return self
+
+    
+    def getEmailAddr(self, enableExt=False) -> str:
+        """Returns the email address with format user[+extensions]@domain
+
+        Args:
+            enableExt (bool, optional): Return the address with extensions. Defaults to False.
+
+        Raises:
+            TypeError: Domain or user not given
+
+        Returns:
+            str: email address
+        """
+        if self.user is None or self.domain is None:
+            raise TypeError("user and domain cannot be 'None'")
+        output = self.user
+        if enableExt:
+            for extension in self.extensions:
+                output = output + "+" + extension
+        output = output + "@" + self.domain
+        return output
+
+    
+    def getFullAddr(self, enableExt=False) -> str:
+        """Returns email address formatted with displayed name if exists (displayedName <user@domain>).
+
+        Args:
+            enableExt (bool, optional): Eanbles extensions in returned address. Defaults to False.
+
+        Returns:
+            str: the email address
+        """
+        output = self.getEmailAddr(enableExt=enableExt)
+        if self.displayedName is not None:
+            output = self.displayedName + "<" + output + ">"
+        return output
 
 
 class Config:

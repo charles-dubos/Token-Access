@@ -21,7 +21,7 @@ environ['TKNACS_CONF'] = environ["TKNACS_PATH"] + "/tokenAccess.conf"
 ## Creation of testing environment
 from lib.utils import CONFIG, LOGGER, EmailAddress, loggingReload
 loggingReload(
-    filename=CONFIG.get('WEB_API', 'logging')[:-4]+'_test.log',
+    filename=CONFIG.get('GLOBAL', 'logging')[:-4]+'_test.log',
     mode='w',
     logLevel="DEBUG"
 )
@@ -59,11 +59,13 @@ class tests_1_utils(unittest.TestCase):
         email1 = EmailAddress()
         email2 = EmailAddress()
         email1.parser("toto@test.com")
-        email2.parser("testing it <toto+testDextension@test.com>")
+        email2.parser("testing it<toto+testDextension@test.com>")
         self.assertEqual(email1.user, email2.user)
         self.assertEqual(email1.domain, email2.domain)
-        self.assertEqual(email2.name, "testing it ")
+        self.assertEqual(email2.displayedName, "testing it")
         self.assertListEqual(email2.extensions, ["testDextension"])
+        self.assertEqual(email2.getEmailAddr(), "toto@test.com")
+        self.assertEqual(email2.getFullAddr(enableExt=True), "testing it<toto+testDextension@test.com>")
 
         self.assertRaises(SyntaxError, email2.parser, 'FalseAddressError')
         self.assertRaises(SyntaxError, email2.parser, 'bad constructed address <test@toto.com')
@@ -187,6 +189,11 @@ class tests_3_database(unittest.TestCase):
         self.dbTest_sqlite3.changePassword(user="user", password='password2')
         self.assertEqual(self.dbTest_sqlite3.getPassword("user"), "password2")
 
+        self.dbTest_sqlite3.delUser(user="user")
+        self.dbTest_sqlite3.delUser(user="user", domain="DOMAIN2")
+        self.assertFalse(self.dbTest_sqlite3.isInDatabase("user"))
+        self.assertFalse(self.dbTest_sqlite3.isInDatabase("user", "DOMAIN2"))
+
     def test_3_userData_mysql(self):
         """Verifications for user creation in mysql database & password
         """
@@ -198,6 +205,11 @@ class tests_3_database(unittest.TestCase):
 
         self.dbTest_mysql.changePassword(user="user", password='password2')
         self.assertEqual(self.dbTest_mysql.getPassword("user"), "password2")
+
+        self.dbTest_mysql.delUser(user="user")
+        self.dbTest_mysql.delUser(user="user", domain="DOMAIN2")
+        self.assertFalse(self.dbTest_mysql.isInDatabase("user"))
+        self.assertFalse(self.dbTest_mysql.isInDatabase("user", "DOMAIN2"))
 
     def test_3_userData_noDomain(self):
         """Verifications for user creation in database with no domain specified
