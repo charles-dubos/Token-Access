@@ -8,16 +8,21 @@ It also manage a centralized logging when the module is imported.
 """
 
 from configparser import ConfigParser
-from os.path import exists
+from os.path import exists, expandvars
 from os import environ, popen
 from xml.dom.minidom import parse as domParser
-import logging
 
+
+# Load logger
+from logging import getLogger
+logger=getLogger('tknAcsAPI')
+
+
+# Static
+CONFIG_FILE=expandvars("${TKNACS_PATH}/tokenAccess.conf")
 
 DEFAULT_CONFIG="""
 [GLOBAL]
-; Enter domains name managed by the HOTP service separated with ,
-domains=
 logging=${TKNACS_PATH}/file.log
 log_level=WARNING
 
@@ -34,30 +39,43 @@ port=465
 ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessSMTP.pem
 ssl_certfile=${TKNACS_PATH}/certs/TokenAccessSMTP.pem
 
+
 [DATABASE]
 ; You can choose to use sqlite3 or mysql for database: 
-type=sqlite3
+db_type=sqlite3
+
 ; - SQLite3 is not recommended (no security on database), but easy to use
 ; - mySQL is more powerfull. You need to install a database server
 ;   On Debian, the installation can be done with 'apt install mariadb-server'
 ;   Then you have to execute 'mysql_secure_installation'
 ; SQLdatabase is the database file (sqlite) or name (mysql)
-SQLdatabase=./tokenAccess.db
+sqlite3_path=${TKNACS_PATH}/tokenAccess.db
+
 ; mysql-specific configurations
-hostDB=localhost
-userDB=admin
-passDB=Password
+mysql_db=tokenAccess
+mysql_host=localhost
+mysql_user=admin
+mysql_pass=Password
+
 
 [CRYPTO]
-; ECDH must be supported by cryptography.hazmat.primitives.assymetric (x25519 or x448):
-ECDH=x25519
-; Hash function must be supported by cyptography.hazmat.primitives.hashes:
-HashFunction=SHA256 
-HashLength=6
-; ExportEncoding must be supported by base64:
-ExportEncoding=b64
+[elliptic]
+; Elliptic curve must be supported by cryptography.hazmat.primitives.assymetric
+; (x25519 or x448, default to x25519)
+curve=x25519
+[hash]
+; ExportBase must be supported by base64 (default to b64)
+base=b64
+; Hash function must be supported by cyptography.hazmat.primitives.hashes
+; (default to SHA256)
+algorithm=SHA256
+[hotp]
+; Length of HOTP in digits (default to 6)
+length=6
 """
 
+
+# Classes
 
 class EmailAddress:
     extensions=[]
@@ -152,41 +170,6 @@ class EmailAddress:
         return output
 
 
-class Config:
-
-    def __init__(self, filename:str):
-        """Create a config file object
-
-        Args:
-            file (str): path of conf file
-        """
-
-        if not exists(filename):
-            with open(filename,"w") as file:
-                    file.write(DEFAULT_CONFIG)
-
-        self._config=ConfigParser(comment_prefixes=";")
-        self._config.read(filename)
-
-    
-    def get(self, category:str, item:str):
-        output = (self._config[category])[item]
-
-        # Bash interpretation of environment variables if $ present
-        if output.find('$') != -1:
-            retMsg = 'Possible env var identified in "' + output + '" : '
-            try:
-                with popen('printf "' + output + '"') as path:
-                    output = path.read()
-                retMsg = retMsg + 'converted to "' + output + '"'
-            except:
-                retMsg = retMsg + 'unexploitable.'
-            finally:
-                (print if "LOGGER" not in locals() else LOGGER.debug)(retMsg)
-
-        return output
-
-
 class ParseXML:
     def __init__(self,xmlFile:str):
         """Parses an XML file starting with a <command> data container.
@@ -212,44 +195,47 @@ class ParseXML:
         return dom.firstChild.nodeValue
 
 
-# Logging management
+# Configuration function
+## Default contexts
+class Context:
+    contexts=[
+        'GLOBAL',
+        'WEB_API',
+        'DATABASE',
+        'elliptic',
+        'hash',
+        'hotp',
+    ]
+    def __init__(self):
+        for context in self.contexts:
+            self.__setattr__(context, {})
 
-LOG_FORMAT = '%(levelname)s:%(asctime)s\t%(message)s'
 
-def loggingReload(filename:str, logLevel:str, mode = 'a', logFormat=LOG_FORMAT):
-    """Redirects the LOGGER with a new filename and an new logLevel 
+    def loadFromConfig(self,filename:str):
+        """Load specific contexts defined in configuration file, and save it in the
+        contexts defined in this module.
 
-    Args:
-        filename (str): output log filename
-        logLevel (str): log level
-        mode (str, optional): (a)ppend or (w)rite. Defaults to 'a'.
-    """
-    global LOGGER
-    LOGLEVELS={
-                "":         logging.NOTSET,
-                "DEBUG":    logging.DEBUG,
-                "INFO":     logging.INFO,
-                "WARNING":     logging.WARNING,
-                "ERROR":    logging.ERROR,
-                "CRITICAL": logging.CRITICAL,
-    }
+        Args:
+            filename (str): path name of config file.
+        """
+        if not exists(filename):
+            logger.warning(f'Cannot find {filename}, creating a default one.')
+            with open(filename,"w") as file:
+                    file.write(DEFAULT_CONFIG)
 
-    LOGGER.setLevel(LOGLEVELS[logLevel])
-    newHandler = logging.FileHandler(filename=filename, encoding='utf-8', mode=mode)
-    newHandler.setLevel(LOGLEVELS[logLevel])
-    newHandler.setFormatter(
-        logging.Formatter(logFormat)
-    )
-    LOGGER.handlers[0]=newHandler
+        # Loading config
+        logger.debug(f'Loading config from {filename}.')
+        config=ConfigParser(comment_prefixes=";")
+        config.read(filename)
 
-## Configuration loading
-CONFIG = Config(environ.get("TKNACS_CONF"))
+        for context in self.contexts:
+            logger.debug(f'\tLoading {context} context:')
+            resolEnvVar=dict(config[context])
+            for key, value in resolEnvVar.items():
+                if value.find('$') != -1:
+                    resolEnvVar[key]=expandvars(value)
+                    logger.debug(f'Resolving {resolEnvVar[key]}')
+            self.__setattr__(context, resolEnvVar)
+            logger.debug('\t\t{}'.format(self.__getattribute__(context)))
 
-## Logging default settings
-logging.basicConfig(
-    filename=CONFIG.get(category='GLOBAL', item='logging'), 
-    level=CONFIG.get(category='GLOBAL', item='log_level'),
-    encoding='utf-8',
-    format=LOG_FORMAT
-)
-LOGGER = logging.getLogger()
+context = Context()

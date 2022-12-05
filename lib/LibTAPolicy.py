@@ -1,42 +1,23 @@
 """Policy implementation:
    ----------------------
-A module that implement the class for token policy management.
+A module that implement the token policy management.
 
 Returns:
     bool: policy allowing or not
 """
 
-class Policy:
-    """Class that agglomerates all the possible rules for a mail token request.
+def policy(sender:str, recipent: str, *args, **kwargs):
+    """Function that agglomerates all the possible rules for a mail token request.
     This includes:
     - innerPolicy: rules implemented to all user of the domain
     - userPolicy: rules set for the specified user
     - [TODO] organizational policy: policy organizational-specific
 
-    NB: This class should not be instantiated. It gives all its results when called.
-
     Returns:
         boolean: Result of the agreement process
     """
-    _sender=None
-    _recipent = None
 
-    def __init__(self, sender:str, recipent: str, *args, **kwargs):
-        """Global policy to set the server behavior in case of token request.
-        *args and **kwargs represents the necessary arguments that could be added for the policy to be more efficient.
-
-        Args:
-            sender (str): sender email address
-            recipent (str): recipient email address
-
-        Returns:
-            boolean: Result of the agreement process
-        """
-        self._sender=sender
-        self._recipent=recipent
-        return self._innerPolicy() and self._userPolicy()
-    
-    def _innerPolicy(self):
+    def _innerPolicy(*args, **kwargs):
         """Represents the agreement process for the SMTP server side, depending mainly on the sender and its domain name.
         It includes (not exhaustibly):
         - The sender domain trust
@@ -49,7 +30,7 @@ class Policy:
 
         return True
 
-    def _userPolicy(self):
+    def _outerPolicy(*args, **kwargs):
         """Represents the agreement process configured by the user.
         It can be based on (not exhaustibly):
         - The presence of the sender in the user contact list
@@ -64,3 +45,5 @@ class Policy:
         #     return False
 
         return True
+
+    return  _innerPolicy(*args, **kwargs) and  _outerPolicy(*args, **kwargs)

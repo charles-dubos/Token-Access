@@ -4,100 +4,71 @@
         <tokenData_table>
             CREATE TABLE IF NOT EXISTS tokenData (
                 user TEXT NOT NULL,
-                domain TEXT NOT NULL,
                 psk TEXT,
                 count INTEGER,
-                PRIMARY KEY (user,domain)
+                PRIMARY KEY (user)
             )
         </tokenData_table>
-        <userData_table>
-            CREATE TABLE IF NOT EXISTS userData (
-                user TEXT NOT NULL,
-                domain TEXT NOT NULL,
-                password TEXT NOT NULL,
-                PRIMARY KEY (user,domain),
-                FOREIGN KEY (user) REFERENCES tokenData(user),
-                FOREIGN KEY (domain) REFERENCES tokenData(domain)
-            )
-        </userData_table>
         <msgToken_table>
             CREATE TABLE IF NOT EXISTS msgToken (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sender TEXT NOT NULL,
                 recipient TEXT NOT NULL,
-                recipientDomain TEXT NOT NULL,
                 token TEXT NOT NULL,
                 FOREIGN KEY (recipient) REFERENCES tokenData(user)
-                FOREIGN KEY (recipientDomain) REFERENCES tokenData(domain)
             )
         </msgToken_table>
     </create>
     <set>
         <tokenData>
-            INSERT INTO tokenData(user,domain)
-                VALUES(?,?)
+            INSERT INTO tokenData(user)
+                VALUES(?)
         </tokenData>
-        <userData>
-            INSERT INTO userData(user,domain,password)
-                VALUES(?,?,?)
-        </userData>
         <msgToken>
-            INSERT INTO msgToken(sender,recipient,recipientDomain,token)
-                VALUES(?,?,?,?)
+            INSERT INTO msgToken(sender,recipient,token)
+                VALUES(?,?,?)
         </msgToken>
     </set>
     <get>
         <tokenData_user>
             SELECT user FROM tokenData
-                WHERE user=? AND domain=?
+                WHERE user=?
         </tokenData_user>
-        <userData_password>
-            SELECT password FROM userData
-                WHERE user=? AND domain=?
-        </userData_password>
         <tokenData_psk-count>
             SELECT psk,count FROM tokenData
-                WHERE user=? AND domain=?
+                WHERE user=?
         </tokenData_psk-count>
         <msgToken_token-sender>
             SELECT token,sender FROM msgToken
-                WHERE recipient=? AND recipientDomain=?
+                WHERE recipient=?
         </msgToken_token-sender>
         <msgToken_token>
             SELECT token FROM msgToken
-                WHERE recipient=? AND recipientDomain=? AND sender=?
+                WHERE recipient=? AND sender=?
         </msgToken_token>
         <msgToken_all>
             SELECT * FROM msgToken
-                WHERE sender=? AND recipient=? AND recipientDomain=? AND token=?
+                WHERE sender=? AND recipient=? AND token=?
         </msgToken_all>
     </get>
     <reset>
-        <userData_password>
-            UPDATE userData SET password=?
-                WHERE user=? AND domain=?
-        </userData_password>
         <tokenData_psk-count>
             UPDATE tokenData SET psk=?, count=?
-                WHERE user=? AND domain=?
+                WHERE user=?
         </tokenData_psk-count>
         <tokendata_count>
             UPDATE tokendata SET count=?
-                WHERE user=? AND domain=?
+                WHERE user=? 
         </tokendata_count>
     </reset>
     <delete>
-        <userData>
-            DELETE FROM userData
-                WHERE user=? AND domain=?
-        </userData>
         <tokenData>
             DELETE FROM tokenData
-                WHERE user=? AND domain=?
+                WHERE user=? 
         </tokenData>
         <msgToken>
             DELETE FROM msgToken
-                WHERE recipient=? AND recipientDomain=? AND token=?
+                WHERE recipient=? AND token=?
         </msgToken>
     </delete>
 </command>

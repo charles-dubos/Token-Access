@@ -11,71 +11,85 @@ Impements administrative functions for SMTP and API servers, after loading confi
 from os import environ
 from os.path import dirname, abspath
 environ['TKNACS_PATH'] = dirname(abspath(__file__))
-environ['TKNACS_CONF'] = environ["TKNACS_PATH"] + "/tokenAccess.conf"
 
 
-# CONFIGURATION
-## Loading conf file
-from lib.utils import CONFIG, LOGGER, EmailAddress
+# Load logger
+import logging.config
+logging.config.dictConfig({
+    'version': 1,
+    'disable_existing_loggers':False,
+    'formatters':{
+        'default_formatter':{
+            'format':'%(levelname)s:%(asctime)s\t%(message)s',
+        },
+    },
+    'handlers':{
+        "file_handler":{
+            'class':'logging.FileHandler',
+            'filename':'adminTasks.log',
+            'encoding':'utf-8',
+            'formatter':'default_formatter',
+        },
+    },
+    'loggers':{
+        'tknAcsAPI':{
+            'handlers':['file_handler'],
+            'level':'DEBUG',
+            'propagate':True
+        }
+    }
+})
+logger = logging.getLogger('tknAcsAPI')
 
 
-## WebAPI variables
-
-DOMAINS = CONFIG.get('GLOBAL','domains').split(',')
-DBTYPE = CONFIG.get('DATABASE','type')
-DATABASE = CONFIG.get('DATABASE','SQLdatabase')
+# Load config
+from lib.LibTAServer import *
+context.loadFromConfig(CONFIG_FILE)
 
 
 # Inner dependances
+from lib.LibTACrypto import HashText
+import lib.LibTADatabase as dbManage
 
-import lib.cryptoFunc as cryptoFunc
-import lib.dbManage as dbManage
-from lib.policy import Policy
 
-# LAUNCH API
-
-LOGGER.debug(f'Opening {DBTYPE} database: {DATABASE}')
-if DBTYPE == "sqlite3":
-    database = dbManage.sqliteDB(dbName=DATABASE,defaultDomain=DOMAINS[0])
-elif DBTYPE == "mysql":
-    database = dbManage.mysqlDB(dbName=DATABASE, defaultDomain=DOMAINS[0])
+# Opening Database
+logger.debug('Opening {} database:'.format( context.DATABASE['db_type'] ))
+if context.DATABASE['db_type'] in ["sqlite3", "mysql"]:
+    database = getattr(
+        dbManage,
+        context.DATABASE['db_type'] + "DB"
+    )(**context.DATABASE)
 else:
     raise FileNotFoundError
 
 
-def addUserToDb(user:str, password:str, domain:str=None):
-    """Adds a user to the database (if domain is none, use the database domain)
+def addUserToDb(userEmail:str):
+    """Adds a user to the database
 
     Args:
-        user (str): user name
-        password (str): user password (not hashed)
-        domain (str, optional): user domain. Defaults to None.
+        userEmail (str): user email
     """
     database.addUser(
-        user=user,
-        domain=domain,
-        password=cryptoFunc.HashText(password).getHash()
+        userEmail=userEmail,
     )
 
 
-def delUserInDb(user:str, domain:str=None):
-    """Removes a user in the database. If token are defined, also deletes all existing tokens.
+def delUserInDb(userEmail:str):
+    """Removes a user in the database.
+    If token are defined, also deletes all existing tokens.
 
     Args:
-        user (str): user name
-        domain (str, optional): user domain. Defaults to None.
+        userEmail (str): user email
     """
-    tokens = database.getAllTokensUser(user=user, domain=domain)
+    tokens = database.getAllTokensUser(userEmail=userEmail)
 
     for (token, sender) in tokens:
-        LOGGER.warning(f"Deleting user {user}: REMOVING TOKEN {token} REQUESTED BY {sender}")
+        logger.warning(f"Deleting user {user}: Removing {token} requested by {sender}")
         database.deleteToken(
-            user=user,
+            userEmail=userEmail,
             token=token,
-            domain=domain
         )
 
     database.delUser(
-        user=user,
-        domain=domain
+        userEmail=userEmail,
     )

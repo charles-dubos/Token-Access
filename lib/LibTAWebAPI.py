@@ -9,49 +9,52 @@ Raises:
     FileNotFoundError: DB not acessible
     HTTPException: (406) Token request not allowed
     HTTPException: (418) Bad formatted email address
-    HTTPException: (400) Incorrect name or password
 """
 
 from fastapi import FastAPI, HTTPException, Form
 
 
+# Load logger
+from logging import getLogger
+logger=getLogger('tknAcsAPI')
+
+
 # CONFIGURATION
-## Loading conf file
-from lib.utils import CONFIG, LOGGER, EmailAddress
-
-
-## WebAPI variables
-
-DOMAINS = CONFIG.get('GLOBAL','domains').split(',')
-DBTYPE = CONFIG.get('DATABASE','type')
-DATABASE = CONFIG.get('DATABASE','SQLdatabase')
+from lib.LibTAServer import *
 
 
 # Inner dependances
 
-import lib.cryptoFunc as cryptoFunc
-import lib.dbManage as dbManage
-from lib.policy import Policy
+from lib.LibTACrypto import getHotp, PreSharedKey
 
-# LAUNCH API
+import lib.LibTADatabase as dbManage
+from lib.LibTAPolicy import policy
 
-LOGGER.debug(f'Opening {DBTYPE} database: {DATABASE}')
-if DBTYPE == "sqlite3":
-    database = dbManage.sqliteDB(dbName=DATABASE,defaultDomain=DOMAINS[0])
-elif DBTYPE == "mysql":
-    database = dbManage.mysqlDB(dbName=DATABASE, defaultDomain=DOMAINS[0])
+
+# Loading database
+logger.debug('Opening {} database:'.format( context.DATABASE['db_type'] ))
+if context.DATABASE['db_type'] in ["sqlite3", "mysql"]:
+    database = getattr(
+        dbManage,
+        context.DATABASE['db_type'] + "DB"
+    )(**context.DATABASE)
 else:
     raise FileNotFoundError
 
 
+# Running API
 app = FastAPI()
+
+def auth(func):
+    print("TODO: AUTH decorator")
+    return func
 
 
 # API functions
-
 @app.get("/")
 async def root():
-    return {"message": "Welcome to HOTP email validator. See '/docs' for API documentation"}
+    return {"message": "Welcome to Token access: a HOTP email validator.\
+        See '/docs' for API documentation"}
 
 
 @app.get("/requestToken/")
@@ -71,28 +74,28 @@ async def requestToken(sender: str, recipient: str):
     """
     try:
         recipientAddr = EmailAddress().parser(recipient)
-        if not database.isInDatabase(user=recipientAddr.user, domain=recipientAddr.domain):
+        if not database.isInDatabase(userEmail=recipientAddr.getEmailAddr()):
             raise PermissionError
 
-        if not Policy(sender, recipient):
+        if not policy(sender, recipient):
             raise PermissionError
 
         preSharedKey, count = database.getHotpData(
-            user=recipientAddr.user, 
-            domain=recipientAddr.domain
+            userEmail=recipientAddr.getEmailAddr(), 
         )
 
-        hotp = cryptoFunc.getHotp(
+        hotp = getHotp(
             preSharedKey=preSharedKey,
-            count=count)
+            count=count,
+            **{**context.hash, **context.hotp},
+        )
         
         ## Adding the record to token database
         database.setSenderTokenUser(
-            user=recipientAddr.user, 
-            domain=recipientAddr.domain,
+            userEmail=recipientAddr.getEmailAddr(), 
             sender=sender, 
             count= count,
-            token=hotp
+            token=hotp,
         )
 
         return {
@@ -114,41 +117,26 @@ async def requestToken(sender: str, recipient: str):
         ) 
 
 
-@app.post("/regenerateHotpSeed")
-async def regenerateHotpSeed(username: str = Form(), password: str = Form(), pubKey: str = Form()):
+@app.post("/{username}/generateHotpSeed")
+@auth
+async def generateHotpSeed(username:str, pubKey: str = Form()):
     """Regenerate seed (PSK) for Hotp generation from the user public key & returns the generated PSK seed, 
     the reinitialized counter and the server public key.
     ! The previous token generated with the elder seed become lapsed.
 
     Args:
-        username (str): user auth & email address, given by POST form.
-        password (str): user auth password, given by POST form.
+        username (str): user email address.
         pubKey (str): user EC pubkey to generate ECDH PSK, given by POST form.
 
-    Raises:
-        HTTPException (HTTP/400): Bad user authentication
-
     Returns:
-        json: formatted with {"user", "pubKey", "counter", "psk"}
+        json: formatted with {"user", "pubKey", "counter"}
     """
-    userAddr = EmailAddress().parser(address=username)
-
-    if not database.isInDatabase(user=userAddr.user, domain=userAddr.domain):
-        raise HTTPException(
-            status_code=400,
-            detail="Incorrect username or password"
-        )
-    savedPassword = database.getPassword(user=userAddr.user, domain=userAddr.domain)
-    if not cryptoFunc.HashText(password).isSame(hashStr=savedPassword):
-        raise HTTPException(
-            status_code=400,
-            detail="Incorrect username or password"
-        )
-    
     
     # BEWARE: pending messages will be refused!!
     ## => Messages which have a generated token but not delivered to user mailbox
-    serverPSK = cryptoFunc.PreSharedKey()
+    serverPSK = PreSharedKey(
+        **{**context.hash, **context.elliptic}
+    )
     ## PSK generation and counter reinitiation
     serverPSK.generate(
         user=username,
@@ -158,13 +146,40 @@ async def regenerateHotpSeed(username: str = Form(), password: str = Form(), pub
 
     ## Modifying the PSK in database
     database.updatePsk(
-        user=userAddr.user,
-        domain=userAddr.domain,
+        userEmail=username,
         psk=serverPSK.PSK,
-        count=counter
+        count=counter,
     )
 
     return {"user": username,
         "pubKey": serverPSK.exportPubKey(),
         "counter": counter,
-        "psk": serverPSK.PSK}
+    }
+
+
+@app.get("/{username}/getCount")
+@auth
+async def getCount(username:str):
+    
+    (_, counter) = database.getHotpData(
+        userEmail=username,
+    )
+
+    return {"username": username,
+        "counter": counter,
+    }
+
+
+@app.get("/{username}/getAllTokens")
+@auth
+async def getAllTokens(username:str):
+    
+    tokens = database.getAllTokensUser(
+        userEmail=username,
+    )
+
+    return {"username": username,
+        "tokens": dict((token, sender) for token, sender in tokens),
+    }
+
+
