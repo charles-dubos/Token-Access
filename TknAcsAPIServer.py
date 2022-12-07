@@ -39,7 +39,7 @@ logging.config.dictConfig({
     'disable_existing_loggers':False,
     'formatters':{
         'default_formatter':{
-            'format':'%(levelname)s:  %(asctime)s  [API][%(filename)s][%(funcName)s]  %(message)s',
+            'format':'%(levelname)s:  %(asctime)s  [%(process)d][%(filename)s][%(funcName)s]  %(message)s',
         },
     },
     'handlers':{

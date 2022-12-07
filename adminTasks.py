@@ -30,7 +30,7 @@ import lib.LibTADatabase as dbManage
 ## Creation of environment var for project & configuration loading
 environ['TKNACS_PATH'] = dirname(abspath(__file__))
 context.loadFromConfig(CONFIG_FILE)
-
+setattr(self, 'process_name', 'ADMIN')
 
 ## Creating specially-configured logger for admin tasks 
 logging.config.dictConfig({
@@ -38,7 +38,7 @@ logging.config.dictConfig({
     'disable_existing_loggers':False,
     'formatters':{
         'default_formatter':{
-            'format':'%(levelname)s:  %(asctime)s  [ADM][%(filename)s][%(funcName)s]  %(message)s',
+            'format':'%(levelname)s:  %(asctime)s  [%(process)d][%(filename)s][%(funcName)s]  %(message)s',
         },
     },
     'handlers':{
