@@ -1,29 +1,40 @@
-"""Useful functions for TokenAcces:
-   --------------------------------
-This module contains useful functions:
-- EmailAdress class to parse email addresses
-- Config class to manage the configuration file
-- ParseXML class to parse XML librairies that containts SQL files
-It also manage a centralized logging when the module is imported.
-"""
+#!/usr/bin/env python3
+#- *- coding:utf-8 -*-
+"""This module contains functionalities for Token Access server
 
+- EmailAdress class to parse email addresses
+- Context class to manage the configuration file
+- ParseXML class to parse XML librairies that containts SQL files
+"""
+__author__='Charles Dubos'
+__license__='GNUv3'
+__credits__='Charles Dubos'
+__version__="0.1.0"
+__maintainer__='Charles Dubos'
+__email__='charles.dubos@telecom-paris.fr'
+__status__='Development'
+
+
+# Built-in
 from configparser import ConfigParser
 from os.path import exists, expandvars
 from os import environ, popen
 from xml.dom.minidom import parse as domParser
-
-
-# Load logger
 from logging import getLogger
+
+
+# Module directives
+## Load logger
 logger=getLogger('tknAcsAPI')
 
 
-# Static
-CONFIG_FILE=expandvars("${TKNACS_PATH}/tokenAccess.conf")
+## Constants
+CONFIG_FILE="${TKNACS_PATH}/tokenAccess.conf"
+
 
 DEFAULT_CONFIG="""
 [GLOBAL]
-logging=${TKNACS_PATH}/file.log
+logging=${TKNACS_PATH}/tknAcs.log
 log_level=WARNING
 
 [WEB_API]
@@ -195,8 +206,6 @@ class ParseXML:
         return dom.firstChild.nodeValue
 
 
-# Configuration function
-## Default contexts
 class Context:
     contexts=[
         'GLOBAL',
@@ -207,6 +216,9 @@ class Context:
         'hotp',
     ]
     def __init__(self):
+        """This class loads the configurations for given contexts.
+        It initiates the contexts to empty dicts.
+        """
         for context in self.contexts:
             self.__setattr__(context, {})
 
@@ -218,6 +230,7 @@ class Context:
         Args:
             filename (str): path name of config file.
         """
+        filename=expandvars(filename)
         if not exists(filename):
             logger.warning(f'Cannot find {filename}, creating a default one.')
             with open(filename,"w") as file:
@@ -238,4 +251,8 @@ class Context:
             self.__setattr__(context, resolEnvVar)
             logger.debug('\t\t{}'.format(self.__getattribute__(context)))
 
+
+# Late-defined directives
+
+## Creation of default context
 context = Context()

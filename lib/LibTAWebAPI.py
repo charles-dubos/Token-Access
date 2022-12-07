@@ -1,37 +1,41 @@
-"""Web API for Token Access:
-   -------------------------
+#!/usr/bin/env python3
+#- *- coding:utf-8 -*-
+"""This module contains functions for Token Access Web API
 
-This API simulates a management canal to :
+The API simulates a management canal to :
 - Request a HOTP token to send a message to a recipient managed by this system
 - (Re-)generate a HOTP seed
-
-Raises:
-    FileNotFoundError: DB not acessible
-    HTTPException: (406) Token request not allowed
-    HTTPException: (418) Bad formatted email address
 """
+__author__='Charles Dubos'
+__license__='GNUv3'
+__credits__='Charles Dubos'
+__version__="0.1.0"
+__maintainer__='Charles Dubos'
+__email__='charles.dubos@telecom-paris.fr'
+__status__='Development'
 
+
+# Built-in
+from logging import getLogger
+
+
+# Other libs
 from fastapi import FastAPI, HTTPException, Form
 
 
-# Load logger
-from logging import getLogger
-logger=getLogger('tknAcsAPI')
-
-
-# CONFIGURATION
+# Owned libs
 from lib.LibTAServer import *
-
-
-# Inner dependances
-
 from lib.LibTACrypto import getHotp, PreSharedKey
-
 import lib.LibTADatabase as dbManage
 from lib.LibTAPolicy import policy
 
 
-# Loading database
+# Module directives
+## Load logger
+logger=getLogger('tknAcsAPI')
+
+
+## Loading database
 logger.debug('Opening {} database:'.format( context.DATABASE['db_type'] ))
 if context.DATABASE['db_type'] in ["sqlite3", "mysql"]:
     database = getattr(
@@ -42,19 +46,21 @@ else:
     raise FileNotFoundError
 
 
-# Running API
+## Definition of API
 app = FastAPI()
-
-def auth(func):
-    print("TODO: AUTH decorator")
-    return func
 
 
 # API functions
+
+## Global-level API points (all-public accessibles)
 @app.get("/")
 async def root():
-    return {"message": "Welcome to Token access: a HOTP email validator.\
-        See '/docs' for API documentation"}
+    """Only returns a welcoming message.
+    Used for connection-testing sake.
+    """
+    return {"message": "Welcome to Token access: a HOTP email validator.",
+        "help":"See '/docs' for API documentation"
+    }
 
 
 @app.get("/requestToken/")
@@ -117,9 +123,45 @@ async def requestToken(sender: str, recipient: str):
         ) 
 
 
+## User-level API points requesting authentication
+def auth(func):
+    print("TODO: AUTH decorator")
+    return func
+
+
+@app.post("/{username}/")
+@auth
+async def home(username:str):
+    """Only returns a welcoming message.
+    Used for connection-testing sake.
+    """
+    return {"message": "Welcome " + username,
+        "help":"See '/docs' for API documentation"
+    }
+
+
+@app.post("/{username}/getConfig")
+@auth
+async def home(username:str):
+    """Returns server configurations useful for the client
+    Including:
+    - Cryptography configurations
+    - Default configurations
+
+    Args:
+        username (str): user email address
+
+    Returns:
+        json: The json of configuration fields
+    """
+    return {"message": "Welcome " + username,
+        "help":"See '/docs' for API documentation"
+    }
+
+
 @app.post("/{username}/generateHotpSeed")
 @auth
-async def generateHotpSeed(username:str, pubKey: str = Form()):
+async def generateHotpSeed(username:str, pubKey:str=Form()):
     """Regenerate seed (PSK) for Hotp generation from the user public key & returns the generated PSK seed, 
     the reinitialized counter and the server public key.
     ! The previous token generated with the elder seed become lapsed.
@@ -132,25 +174,27 @@ async def generateHotpSeed(username:str, pubKey: str = Form()):
         json: formatted with {"user", "pubKey", "counter"}
     """
     
-    # BEWARE: pending messages will be refused!!
-    ## => Messages which have a generated token but not delivered to user mailbox
+    logger.info(f'Request PSK for {username} with pubKey {pubKey}')
+
+    logger.debug('Generating server private key.')
     serverPSK = PreSharedKey(
         **{**context.hash, **context.elliptic}
     )
-    ## PSK generation and counter reinitiation
+    logger.debug('Generating PSK.')
     serverPSK.generate(
         user=username,
         recipientPubKey=pubKey,
     )
     counter = 0
 
-    ## Modifying the PSK in database
+    logger.debug('Saving PSK to database.')
     database.updatePsk(
         userEmail=username,
         psk=serverPSK.PSK,
         count=counter,
     )
 
+    logger.debug('Returning public key and counter.')
     return {"user": username,
         "pubKey": serverPSK.exportPubKey(),
         "counter": counter,

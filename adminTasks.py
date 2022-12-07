@@ -1,32 +1,50 @@
-"""Admin tasks for database:
-   -------------------------
-Impements administrative functions for SMTP and API servers, after loading configuration:
-- addUserToDb: adds a user to the configured DB
-- delUserInDb: removes a user in the configured DB
+#!/usr/bin/env python3
+#- *- coding:utf-8 -*-
+"""This module provides functionalities for Token Access server-side actions
+
+It impements administrative functions for SMTP and API servers, after loading configuration.
 """
+__author__='Charles Dubos'
+__license__='GNUv3'
+__credits__='Charles Dubos'
+__version__="0.1.0"
+__maintainer__='Charles Dubos'
+__email__='charles.dubos@telecom-paris.fr'
+__status__='Development'
 
 
-# PROJECT PERIMETER
-## Creation of environment var for project
-from os import environ
+# Built-in
+from os import environ, system
 from os.path import dirname, abspath
-environ['TKNACS_PATH'] = dirname(abspath(__file__))
-
-
-# Load logger
 import logging.config
+
+
+# Owned libs
+from lib.LibTAServer import *
+from lib.LibTACrypto import HashText
+import lib.LibTADatabase as dbManage
+
+
+# Module directives
+
+## Creation of environment var for project & configuration loading
+environ['TKNACS_PATH'] = dirname(abspath(__file__))
+context.loadFromConfig(CONFIG_FILE)
+
+
+## Creating specially-configured logger for admin tasks 
 logging.config.dictConfig({
     'version': 1,
     'disable_existing_loggers':False,
     'formatters':{
         'default_formatter':{
-            'format':'%(levelname)s:%(asctime)s\t%(message)s',
+            'format':'%(levelname)s:  %(asctime)s  [ADM][%(filename)s][%(funcName)s]  %(message)s',
         },
     },
     'handlers':{
         "file_handler":{
             'class':'logging.FileHandler',
-            'filename':'adminTasks.log',
+            'filename':context.GLOBAL['logging'],
             'encoding':'utf-8',
             'formatter':'default_formatter',
         },
@@ -39,20 +57,13 @@ logging.config.dictConfig({
         }
     }
 })
+
+
+## Load logger
 logger = logging.getLogger('tknAcsAPI')
 
 
-# Load config
-from lib.LibTAServer import *
-context.loadFromConfig(CONFIG_FILE)
-
-
-# Inner dependances
-from lib.LibTACrypto import HashText
-import lib.LibTADatabase as dbManage
-
-
-# Opening Database
+## Opening Database
 logger.debug('Opening {} database:'.format( context.DATABASE['db_type'] ))
 if context.DATABASE['db_type'] in ["sqlite3", "mysql"]:
     database = getattr(
@@ -63,7 +74,12 @@ else:
     raise FileNotFoundError
 
 
-def addUserToDb(userEmail:str):
+# Functions
+class test:
+    pass
+
+
+def addUserInDb(userEmail:str):
     """Adds a user to the database
 
     Args:
@@ -93,3 +109,8 @@ def delUserInDb(userEmail:str):
     database.delUser(
         userEmail=userEmail,
     )
+
+print("""Hello admin!
+It impements administrative functions for common SMTP and API servers database,
+after loading configuration: be particularly vigilent when using it!
+""")

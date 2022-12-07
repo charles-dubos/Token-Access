@@ -1,29 +1,45 @@
-"""Unicorn server launcher:
-   ------------------------
-This python script launches the web API configured in the conf file. 
-"""
+#!/usr/bin/env python3
+#- *- coding:utf-8 -*-
+"""This script starts a unicorn server for Token Access API.
 
+It uses the defined configuration file.
+"""
+__author__='Charles Dubos'
+__license__='GNUv3'
+__credits__='Charles Dubos'
+__version__="0.1.0"
+__maintainer__='Charles Dubos'
+__email__='charles.dubos@telecom-paris.fr'
+__status__='Development'
+
+
+# Built-in
+from os import environ
+from os.path import dirname, abspath
+import logging.config
+
+
+# Other libs
 import uvicorn
 
 
-# PROJECT PERIMETER
-## Creation of environment var for project
-from os import environ
-from os.path import dirname, abspath
-environ['TKNACS_PATH'] = dirname(abspath(__file__))
-
-
+# Owned libs
 from lib.LibTAServer import *
+
+
+# Module directives
+## Creation of environment var for project & configuration loading
+environ['TKNACS_PATH'] = dirname(abspath(__file__))
 context.loadFromConfig(CONFIG_FILE)
 
 
-import logging.config
+## Creating specially-configured logger
 logging.config.dictConfig({
     'version': 1,
     'disable_existing_loggers':False,
     'formatters':{
         'default_formatter':{
-            'format':'%(levelname)s:%(asctime)s\t%(message)s',
+            'format':'%(levelname)s:  %(asctime)s  [API][%(filename)s][%(funcName)s]  %(message)s',
         },
     },
     'handlers':{
@@ -44,6 +60,8 @@ logging.config.dictConfig({
 })
 logger = logging.getLogger('tknAcsAPI')
 
+
+# Launcher
 if __name__=="__main__":
     logger.debug('Launching API server')
     uvicorn.run(

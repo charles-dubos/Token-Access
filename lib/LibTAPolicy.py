@@ -1,11 +1,21 @@
-"""Policy implementation:
-   ----------------------
-A module that implement the token policy management.
+#!/usr/bin/env python3
+#- *- coding:utf-8 -*-
+"""This module contains functionalities for Token Access policy
 
-Returns:
-    bool: policy allowing or not
+Its goal is to manage policy for email token management.
+It is only an empty shell for the moment to illustrate the possibilities 
+of the project.
 """
+__author__='Charles Dubos'
+__license__='GNUv3'
+__credits__='Charles Dubos'
+__version__="0.1.0"
+__maintainer__='Charles Dubos'
+__email__='charles.dubos@telecom-paris.fr'
+__status__='Development'
 
+
+# Functions
 def policy(sender:str, recipent: str, *args, **kwargs):
     """Function that agglomerates all the possible rules for a mail token request.
     This includes:

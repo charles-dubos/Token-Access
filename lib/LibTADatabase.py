@@ -1,7 +1,8 @@
-"""Database management:
-   --------------------
-Mysql and sqlite3 database management module, containing:
-- mysqlDB and sqliteDB classes implementing the folowing methods:
+#!/usr/bin/env python3
+#- *- coding:utf-8 -*-
+"""This module contains functionalities for Token Access database use
+
+mysqlDB and sqliteDB classes implementing the folowing methods:
   > addUser: adds a user to the database
   > delUser: removes a user in the database
   > isInDatabase: verifies if a user is present in database
@@ -15,23 +16,39 @@ Mysql and sqlite3 database management module, containing:
   > isTokenValid: test if a token has been attributed
   > deleteToken: remove a token from database
 """
+__author__='Charles Dubos'
+__license__='GNUv3'
+__credits__='Charles Dubos'
+__version__="0.1.0"
+__maintainer__='Charles Dubos'
+__email__='charles.dubos@telecom-paris.fr'
+__status__='Development'
 
 
-import sqlite3, mysql.connector
+# Built-in
 from os import environ
 from abc import ABC, abstractmethod
-
-
-# Load logger
+import sqlite3
 from logging import getLogger
-logger=getLogger('tknAcsAPI')
 
 
+# Other libs
+import mysql.connector
+
+
+# Owned libs
 from lib.LibTAServer import ParseXML
 
 
-# SQL database classes
+# Module directives
+## Load logger
+logger=getLogger('tknAcsAPI')
 
+
+
+# Classes
+
+## SQL database abstract class
 class _SQLDB(ABC):
     _sqlCmd = None
     _type = None
@@ -232,6 +249,7 @@ class _SQLDB(ABC):
         self.connector.close()
 
 
+## SQLITE3 database class
 class sqlite3DB(_SQLDB):
     def __init__(self, sqlite3_path:str, **dbContext):
         """Creates a sqlite3 database connector & cursor.
@@ -247,6 +265,7 @@ class sqlite3DB(_SQLDB):
         self._createTables()
 
 
+## MYSQL database class
 class mysqlDB(_SQLDB):
     def __init__(self, mysql_db:str, mysql_host:str, mysql_user:str, mysql_pass:str, **dbContext):
         """Creates a MySQL database connector & cursor.

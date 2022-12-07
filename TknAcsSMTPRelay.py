@@ -1,33 +1,68 @@
-"""SMTP relay for Token Access:
-   ----------------------------
+#!/usr/bin/env python3
+#- *- coding:utf-8 -*-
+"""This script starts the Token Access SMTP server
 
-This file uses a SMTP relay server to manage the input messages and allow them only if they have a valid token. 
-
+TODO : MUST BE REIMPLEMENTED!!!
 """
+__author__='Charles Dubos'
+__license__='GNUv3'
+__credits__='Charles Dubos'
+__version__="0.1.0"
+__maintainer__='Charles Dubos'
+__email__='charles.dubos@telecom-paris.fr'
+__status__='Development'
 
+
+# Built-in
 import asyncio, ssl
-import aiosmtpd
+from os import environ
+from os.path import dirname, abspath
+
+
+# Other libs
 from aiosmtpd.controller import Controller
 
 
-# PROJECT PERIMETER
-## Creation of environment var for project
-from os import environ
-from os.path import dirname, abspath
+# Owned libs
+import lib.LibTADatabase as dbManage
+
+
+# Module directives
+
+## Creation of environment var for project & configuration loading
 environ['TKNACS_PATH'] = dirname(abspath(__file__))
-environ['TKNACS_CONF'] = environ["TKNACS_PATH"] + "/tokenAccess.conf"
+context.loadFromConfig(CONFIG_FILE)
 
 
-# CONFIGURATION
-## Loading conf file
-from lib.utils import CONFIG, LOGGER, EmailAddress
-DOMAINS = CONFIG.get('GLOBAL','domains').split(',')
-DBTYPE = CONFIG.get('DATABASE','type')
-DATABASE = CONFIG.get('DATABASE','SQLdatabase')
+## Creating specially-configured logger
+logging.config.dictConfig({
+    'version': 1,
+    'disable_existing_loggers':False,
+    'formatters':{
+        'default_formatter':{
+            'format':'%(levelname)s:  %(asctime)s  [SMTP][%(filename)s][%(funcName)s]  %(message)s',
+        },
+    },
+    'handlers':{
+        "file_handler":{
+            'class':'logging.FileHandler',
+            'filename':context.GLOBAL['logging'],
+            'encoding':'utf-8',
+            'formatter':'default_formatter',
+        },
+    },
+    'loggers':{
+        'tknAcsAPI':{
+            'handlers':['file_handler'],
+            'level':context.GLOBAL['log_level'],
+            'propagate':True
+        }
+    }
+})
+logger = logging.getLogger('tknAcsAPI')
 
 
-import lib.dbManage as dbManage
-
+# Classes
 
 class TknAcsHandler:
     async def handle_RCPT(self, server, session, envelope, address, rcpt_options):
@@ -67,9 +102,14 @@ class TknAcsHandler:
                 return '250 Message accepted for delivery'
             else:
                 return '450 Requested action not taken - The user\'s mailbox is unavailable (bad token).'
-   
+
+
+# Launcher
 if __name__=="__main__":
-    LOGGER.debug(f'Opening {DBTYPE} database: {DATABASE}')
+    print("EXIT NOT IMPLEMENTED")
+    exit()
+
+    logger.debug(f'Opening {DBTYPE} database: {DATABASE}')
     if DBTYPE == "sqlite3":
         database = dbManage.sqliteDB(dbName=DATABASE,defaultDomain=DOMAINS[0])
     elif DBTYPE == "mysql":
