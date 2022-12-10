@@ -111,9 +111,9 @@ if __name__=="__main__":
 
     logger.debug(f'Opening {DBTYPE} database: {DATABASE}')
     if DBTYPE == "sqlite3":
-        database = dbManage.sqliteDB(dbName=DATABASE,defaultDomain=DOMAINS[0])
+        database = dbManage.Sqlite3DB(dbName=DATABASE,defaultDomain=DOMAINS[0])
     elif DBTYPE == "mysql":
-        database = dbManage.mysqlDB(dbName=DATABASE, defaultDomain=DOMAINS[0])
+        database = dbManage.MysqlDB(dbName=DATABASE, defaultDomain=DOMAINS[0])
     else:
         raise FileNotFoundError
 

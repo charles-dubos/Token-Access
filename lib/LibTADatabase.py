@@ -2,7 +2,7 @@
 #- *- coding:utf-8 -*-
 """This module contains functionalities for Token Access database use
 
-mysqlDB and sqliteDB classes implementing the folowing methods:
+MysqlDB and Sqlite3DB classes implementing the folowing methods:
   > addUser: adds a user to the database
   > delUser: removes a user in the database
   > isInDatabase: verifies if a user is present in database
@@ -246,16 +246,19 @@ class _SQLDB(ABC):
 
 
     def __del__(self):
-        self.connector.close()
+        try:
+            self.connector.close()
+        except:
+            pass
 
 
 ## SQLITE3 database class
-class sqlite3DB(_SQLDB):
+class Sqlite3DB(_SQLDB):
     def __init__(self, sqlite3_path:str, **dbContext):
         """Creates a sqlite3 database connector & cursor.
 
         Args:
-            sqlite3Db (str): SQLite3 DB pathName
+            sqlite3_path (str): SQLite3 DB pathName
         """
         logger.debug(f'Loading DB from {sqlite3_path}')
         super().__init__(**dbContext)
@@ -266,15 +269,15 @@ class sqlite3DB(_SQLDB):
 
 
 ## MYSQL database class
-class mysqlDB(_SQLDB):
+class MysqlDB(_SQLDB):
     def __init__(self, mysql_db:str, mysql_host:str, mysql_user:str, mysql_pass:str, **dbContext):
         """Creates a MySQL database connector & cursor.
 
         Args:
-            mysqlDb (str): MySQL DB name
-            mysqlHost (str): MySQL DB host
-            mysqlUser (str): MySQL DB user
-            mysqlPass (str): MySQL DB user's pass
+            mysql_db (str): MySQL DB name
+            mysql_host (str): MySQL DB host
+            mysql_user (str): MySQL DB user
+            mysql_pass (str): MySQL DB user's pass
         """
         logger.debug(f'Loading {mysql_db} DB from {mysql_host}')
         super().__init__(**dbContext)

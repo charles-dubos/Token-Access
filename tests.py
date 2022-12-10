@@ -1,57 +1,97 @@
 """Test module for TokenAccess:
    ----------------------------
 Impements unit tests for:
-- lib.utils
-- lib.cryptoFunc
-- lib.dbManage
-- [TODO]lib.policy
+- lib.LibTAServer
+- lib.LibTACrypto
+- lib.LibTADatabase
+- [TODO]lib.LibTAPolicy
 """
+__author__='Charles Dubos'
+__license__='GNUv3'
+__credits__='Charles Dubos'
+__version__="0.1.0"
+__maintainer__='Charles Dubos'
+__email__='charles.dubos@telecom-paris.fr'
+__status__='Development'
 
+
+# Built-in
 import unittest
 from os import environ, remove
-from os.path import dirname, abspath, exists
-from configparser import RawConfigParser
+from os.path import dirname, abspath, exists, expandvars
+import logging.config
 
 
+# Owned libs
+from lib.LibTAServer import *
+import lib.LibTACrypto as cryptoFunc
+import lib.LibTADatabase as dbManage
+
+
+# Module directives
+## Creation of environment var for project & configuration loading
 environ['TKNACS_PATH'] = dirname(abspath(__file__))
-environ['TKNACS_CONF'] = environ["TKNACS_PATH"] + "/tokenAccess.conf"
+context.loadFromConfig(CONFIG_FILE)
+context.DATABASE['sqlite3_path']='/tmp/tknAcsTest.db'
+context.DATABASE['mysql_db']='tknAcsTest'
+context.GLOBAL['logging']='TknAcsTest.log'
+context.GLOBAL['log_level']='DEBUG'
+USERTEST="toto@example.com"
+SENDERTEST="sender@other.com"
+
+## Creating specially-configured logger
+logging.config.dictConfig({
+    'version': 1,
+    'disable_existing_loggers':False,
+    'formatters':{
+        'default_formatter':{
+            'format':'%(levelname)s:  %(asctime)s  [%(process)d][%(filename)s][%(funcName)s]  %(message)s',
+        },
+    },
+    'handlers':{
+        "file_handler":{
+            'class':'logging.FileHandler',
+            'filename':context.GLOBAL['logging'],
+            'encoding':'utf-8',
+            'formatter':'default_formatter',
+        },
+    },
+    'loggers':{
+        'tknAcsAPI':{
+            'handlers':['file_handler'],
+            'level':context.GLOBAL['log_level'],
+            'propagate':True
+        }
+    }
+})
+logger = logging.getLogger('tknAcsAPI')
 
 
-# PROJECT PERIMETER
-## Creation of testing environment
-from lib.utils import CONFIG, LOGGER, EmailAddress, loggingReload
-loggingReload(
-    filename=CONFIG.get('GLOBAL', 'logging')[:-4]+'_test.log',
-    mode='w',
-    logLevel="DEBUG"
-)
+# Tests
 
-
-# Tests for utils lib
-#from lib.utils import LOGGER
-#print(LOGGER.handlers, LOGGER)
-LOGGER.critical("-= BEGINING TESTS =-")
-
-class tests_1_utils(unittest.TestCase):
+class tests_1_LibTAServer(unittest.TestCase):
 
     def test_1_logger(self):
         """Verification of logging levels
         """
-        LOGGER.debug("Test DEBUG level")
-        LOGGER.info("Test INFO level")
-        LOGGER.warning("Test WARNING level")
-        LOGGER.error("Test ERROR level")
-        LOGGER.critical("Test CRITICAL level")
+        logger.debug("Test DEBUG level")
+        logger.info("Test INFO level")
+        logger.warning("Test WARNING level")
+        logger.error("Test ERROR level")
+        logger.critical("Test CRITICAL level")
 
     def test_2_confLoad(self):
         """Verification of configuration loading
         """
-        mainPath=environ.get('TKNACS_PATH')
-        self.assertTrue(exists(mainPath))
-        confFile=environ.get('TKNACS_CONF')
-        self.assertTrue(exists(confFile))
-        self.assertIsNotNone(confFile)
-        self.assertIn(CONFIG.get("DATABASE", "type"), ("sqlite3", "mysql"))
+        self.assertTrue(
+            exists(environ.get('TKNACS_PATH'))
+        )
+        self.assertTrue(exists(expandvars(CONFIG_FILE)))
+        self.assertIsNotNone(context)
+        self.assertIn(
+            context.DATABASE['db_type'],
+            ("sqlite3", "mysql")
+        )
 
     def test_3_EmailParser(self):
         """Verification of the email parsing function
@@ -72,22 +112,24 @@ class tests_1_utils(unittest.TestCase):
         self.assertRaises(SyntaxError, email2.parser, 'test@toto.com>')
 
 
-# Tests for cryptoFunc lib
-import lib.cryptoFunc as cryptoFunc
-
 class tests_2_crypto(unittest.TestCase):
 
     def test_1_hash(self):
         """Verifications on the hash function
         """
-        hash1 = cryptoFunc.HashText("plainText")
-        hash2 = cryptoFunc.HashText("plainText2")
+        hash1 = cryptoFunc.HashText(
+            plaintext="plaintext",
+            **context.hash
+        )
+        hash2 = cryptoFunc.HashText(
+            plaintext="plaintext2",
+            **context.hash)
 
-        self.assertEqual(type(hash1.getHash()), str)
+        self.assertEqual(type(hash1.getHash()), bytes)
 
         self.assertNotEqual(hash1.getHash(), hash2.getHash())
-        self.assertTrue(hash1.isSame(hash1.getHash()))
-        self.assertFalse(hash1.isSame(hash2.getHash()))
+        self.assertTrue(hash1.isSame(hash1.getHash().decode()))
+        self.assertFalse(hash1.isSame(hash2.getHash().decode()))
 
 
     def test_2_ECDH_exchange(self):
@@ -125,30 +167,20 @@ class tests_2_crypto(unittest.TestCase):
             self.assertNotIn(firstHotps[count], firstHotps[count+1:])
 
 
-# Tests for dbManage lib
-import lib.dbManage as dbManage
-
 class tests_3_database(unittest.TestCase):
-    # Simple SQLite3 databbase
-    dbName_sqlite3 = "TKNACS_test.db"
-
-    # Simple SQL database
-    dbName_mySQL = 'TKNACS_test'
-
-    # Minimal SQLite3 database (no domain specified)
-    dbNameNoDomain = "TKNACS_testNoDomain.db"
 
     def __init__(self, *args, **kwargs):
         super(tests_3_database, self).__init__(*args, **kwargs)
-        if exists(self.dbName_sqlite3):
-            remove(self.dbName_sqlite3)
-        if exists(self.dbNameNoDomain):
-            remove(self.dbNameNoDomain)
+        if exists(context.DATABASE['sqlite3_path']):
+            remove(context.DATABASE['sqlite3_path'])
+
 
     def setUp(self):
-        self.dbTest_sqlite3 = dbManage.sqliteDB(dbName=self.dbName_sqlite3, defaultDomain="domain1.loc")
-        self.dbTestNoDomain = dbManage.sqliteDB(dbName=self.dbNameNoDomain)
-        self.dbTest_mysql = dbManage.mysqlDB(dbName=self.dbName_mySQL, defaultDomain="domain1.loc")
+        context.DATABASE['db_type']='sqlite3'
+        self.dbTest_sqlite3 = dbManage.Sqlite3DB(**context.DATABASE,)
+
+        context.DATABASE['db_type']='mysql'
+        self.dbTest_mysql = dbManage.MysqlDB(**context.DATABASE,)
 
 
     def test_1_connection(self):
@@ -160,73 +192,42 @@ class tests_3_database(unittest.TestCase):
         self.assertIsNotNone(self.dbTest_mysql.connector)
         self.assertIsNotNone(self.dbTest_mysql.cursor)
 
-        self.assertIsNotNone(self.dbTestNoDomain.connector)
-        self.assertIsNotNone(self.dbTestNoDomain.cursor)
-
 
     def test_2_emptyDataBase(self):
         """Verifications on empty database
         """
-        self.assertFalse(self.dbTest_sqlite3.isInDatabase("user"))
-        self.assertIsNone(self.dbTest_sqlite3.getPassword("user"))
-
-        self.assertFalse(self.dbTest_mysql.isInDatabase("user"))
-        self.assertIsNone(self.dbTest_mysql.getPassword("user"))
+        self.assertFalse(self.dbTest_sqlite3.isInDatabase(USERTEST))
+        self.assertFalse(self.dbTest_mysql.isInDatabase(USERTEST))
 
 
     def test_3_userData_sqlite3(self):
         """Verifications for user creation in sqlite3 database & password
         """
-        self.dbTest_sqlite3.addUser(user="user", password="password")
-        self.assertTrue(self.dbTest_sqlite3.isInDatabase("user"))
-        self.assertFalse(self.dbTest_sqlite3.isInDatabase("user", "DOMAIN2"))
-        self.assertEqual(self.dbTest_sqlite3.getPassword("user"), "password")
+        self.dbTest_sqlite3.addUser(USERTEST)
+        self.assertTrue(self.dbTest_sqlite3.isInDatabase(USERTEST))
 
-        self.dbTest_sqlite3.addUser(user="user", domain="DOMAIN2", password="password2")
-        self.assertTrue(self.dbTest_sqlite3.isInDatabase("user", "DOMAIN2"))
-        self.assertEqual(self.dbTest_sqlite3.getPassword("user", domain="DOMAIN2"), "password2")
+        self.dbTest_sqlite3.delUser(USERTEST)
+        self.assertFalse(self.dbTest_sqlite3.isInDatabase(USERTEST))
 
-        self.dbTest_sqlite3.changePassword(user="user", password='password2')
-        self.assertEqual(self.dbTest_sqlite3.getPassword("user"), "password2")
-
-        self.dbTest_sqlite3.delUser(user="user")
-        self.dbTest_sqlite3.delUser(user="user", domain="DOMAIN2")
-        self.assertFalse(self.dbTest_sqlite3.isInDatabase("user"))
-        self.assertFalse(self.dbTest_sqlite3.isInDatabase("user", "DOMAIN2"))
 
     def test_3_userData_mysql(self):
         """Verifications for user creation in mysql database & password
         """
-        self.dbTest_mysql.addUser(user="user", password="password")
-        self.assertEqual(self.dbTest_mysql.getPassword("user"), "password")
-
-        self.dbTest_mysql.addUser(user="user", domain="DOMAIN2", password="password2")
-        self.assertEqual(self.dbTest_mysql.getPassword("user", domain="DOMAIN2"), "password2")
-
-        self.dbTest_mysql.changePassword(user="user", password='password2')
-        self.assertEqual(self.dbTest_mysql.getPassword("user"), "password2")
-
-        self.dbTest_mysql.delUser(user="user")
-        self.dbTest_mysql.delUser(user="user", domain="DOMAIN2")
-        self.assertFalse(self.dbTest_mysql.isInDatabase("user"))
-        self.assertFalse(self.dbTest_mysql.isInDatabase("user", "DOMAIN2"))
-
-    def test_3_userData_noDomain(self):
-        """Verifications for user creation in database with no domain specified
-        """
-        self.dbTestNoDomain.addUser(user="user", domain="DOMAIN1", password="password")
-        self.assertRaises(TypeError, self.dbTestNoDomain.isInDatabase, "password")
+        self.dbTest_mysql.addUser(USERTEST)
+        self.assertTrue(self.dbTest_mysql.isInDatabase(USERTEST))
+        self.dbTest_mysql.delUser(USERTEST)
+        self.assertFalse(self.dbTest_mysql.isInDatabase(USERTEST))
 
 
     def test_4_HOTPAdding(self):
         """Tests the recording of HOTP data (PSK & counter)
         """
-        self.dbTest_sqlite3.addUser(user="tokenUser", password="password")
+        self.dbTest_sqlite3.addUser(USERTEST)
 
         # Populate PSK
-        self.assertIsNone(self.dbTest_sqlite3.getHotpData(user="tokenUser")[0])
-        self.dbTest_sqlite3.updatePsk(user="tokenUser", psk="PreSharedKey", count=0)
-        psk,count = self.dbTest_sqlite3.getHotpData(user="tokenUser")
+        self.assertIsNone(self.dbTest_sqlite3.getHotpData(USERTEST)[0])
+        self.dbTest_sqlite3.updatePsk(userEmail=USERTEST, psk="PreSharedKey", count=0)
+        psk,count = self.dbTest_sqlite3.getHotpData(userEmail=USERTEST)
         self.assertEqual(psk, "PreSharedKey")
         self.assertEqual(count, 0)
 
@@ -234,28 +235,52 @@ class tests_3_database(unittest.TestCase):
     def test_token(self):
         """Verification of token recording & requesting
         """
-        self.dbTest_sqlite3.addUser(user="tokenUser2", password="password2")
+        self.dbTest_sqlite3.addUser(USERTEST)
 
         # Create new token
-        self.dbTest_sqlite3.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="123456", counter=0)
-        self.assertTrue(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123456"))
-        self.assertFalse(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123455"))
+        self.dbTest_sqlite3.setSenderTokenUser(
+            userEmail=USERTEST,
+            sender=SENDERTEST,
+            token="123456",
+            counter=0)
+        self.assertTrue(self.dbTest_sqlite3.isTokenValid(
+            userEmail=USERTEST,
+            sender=SENDERTEST,
+            token="123456"))
+        self.assertFalse(self.dbTest_sqlite3.isTokenValid(
+            userEmail=USERTEST,
+            sender=SENDERTEST,
+            token="123455"))
 
-        self.dbTest_sqlite3.setSenderTokenUser(user="tokenUser2", sender="sender@domain2.loc", token="654321", counter=0)
-        self.assertEqual(len(self.dbTest_sqlite3.getAllTokensUser(user="tokenUser2")),2)
-        self.assertEqual(len(self.dbTest_sqlite3.getSenderTokensUser(user="tokenUser2", sender="sender@domain2.loc")),2)
+        self.dbTest_sqlite3.setSenderTokenUser(
+            userEmail=USERTEST,
+            sender=SENDERTEST,
+            token="654321",
+            counter=0)
+        self.assertEqual(len(self.dbTest_sqlite3.getAllTokensUser(USERTEST)),2)
+        self.assertEqual(len(self.dbTest_sqlite3.getSenderTokensUser(
+            userEmail=USERTEST,
+            sender=SENDERTEST)) ,2)
 
         # Token deletion
-        self.dbTest_sqlite3.deleteToken(user="tokenUser2", token="123456")
-        self.assertFalse(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="123456"))
-        self.assertTrue(self.dbTest_sqlite3.isTokenValid(user="tokenUser2", sender="sender@domain2.loc", token="654321"))
+        self.dbTest_sqlite3.deleteToken(
+            userEmail=USERTEST,
+            token="123456")
+        self.assertFalse(self.dbTest_sqlite3.isTokenValid(
+            userEmail=USERTEST,
+            sender=SENDERTEST,
+            token="123456"))
+        self.assertTrue(self.dbTest_sqlite3.isTokenValid(
+            userEmail=USERTEST,
+            sender=SENDERTEST,
+            token="654321"))
 
     
     def __del__(self, *args, **kwargs):
-        remove(self.dbName_sqlite3)
-        remove(self.dbNameNoDomain)
+        remove(context.DATABASE['sqlite3_path'])
 
-        self.dbTest_mysql.cursor.execute(f"DROP DATABASE {self.dbName_mySQL}")
+        self.dbTest_mysql.cursor.execute(
+            f"DROP DATABASE {context.DATABASE['mysql_db']}")
         self.dbTest_mysql.connector.commit()
 
 

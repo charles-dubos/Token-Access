@@ -92,12 +92,11 @@ class PreSharedKey:
 
 class HashText:
 
-
-    def __init__(self, plainText:str, base:str='b64', algorithm:str='SHA256'):
+    def __init__(self, plaintext:str, base:str='b64', algorithm:str='SHA256'):
         """Creates a hashText object
 
         Args:
-            plainText (str): The message to hash
+            plaintext (str): The message to hash
             base (str, optional): An encoding base allowed by base64. Defaults to 'b64'.
             algorithm (str, optional): A hashing function allowed by cryptography.hazmat.primitives.hashes. Defaults to 'SHA256'.
         """
@@ -107,31 +106,31 @@ class HashText:
 
         self._algorithm=getattr(hashes, algorithm)
 
-        self.plainText=plainText.encode()
+        self.plaintext=plaintext.encode()
 
     
-    def getHash(self) -> str:
+    def getHash(self) -> bytes:
         """Get the generated hash
 
         Returns:
-            str: The base-encoded hash
+            bytes: The base-encoded hash
         """
         digest = hashes.Hash( algorithm=self._algorithm() )
-        digest.update(self.plainText)
+        digest.update(self.plaintext)
         hashBytes = digest.finalize()
-        return self._baseEncode(hashBytes).decode('ascii')
+        return self._baseEncode(hashBytes)
 
     
     def isSame(self, hashStr:str) -> bool:
         """Checks if the given base-encoded hash is the one of the object's one
 
         Args:
-            hashStr (str): The base-encoded hash value
+            hashStr (str): The base-encoded string hash value
 
         Returns:
             bool: Result of hash comparison
         """
-        return (self.getHash() == hashStr)
+        return (self.getHash() == hashStr.encode())
     
 
 

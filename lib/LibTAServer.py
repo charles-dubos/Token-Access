@@ -34,6 +34,7 @@ CONFIG_FILE="${TKNACS_PATH}/tokenAccess.conf"
 
 DEFAULT_CONFIG="""
 [GLOBAL]
+window=50
 logging=${TKNACS_PATH}/tknAcs.log
 log_level=WARNING
 
@@ -41,13 +42,13 @@ log_level=WARNING
 ; API host:port and SSL HTTPS connection parameters
 host=127.0.0.1
 port=8443
-ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessAPI.pem
+ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessAPI.key
 ssl_certfile=${TKNACS_PATH}/certs/TokenAccessAPI.pem
 
 [SMTP_SERVER]
 host=127.0.0.1
 port=465
-ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessSMTP.pem
+ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessSMTP.key
 ssl_certfile=${TKNACS_PATH}/certs/TokenAccessSMTP.pem
 
 

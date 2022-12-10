@@ -40,7 +40,7 @@ logger.debug('Opening {} database:'.format( context.DATABASE['db_type'] ))
 if context.DATABASE['db_type'] in ["sqlite3", "mysql"]:
     database = getattr(
         dbManage,
-        context.DATABASE['db_type'] + "DB"
+        context.DATABASE['db_type'].title() + "DB"
     )(**context.DATABASE)
 else:
     raise FileNotFoundError
@@ -58,8 +58,9 @@ async def root():
     """Only returns a welcoming message.
     Used for connection-testing sake.
     """
-    return {"message": "Welcome to Token access: a HOTP email validator.",
-        "help":"See '/docs' for API documentation"
+    return {
+        "message": "Welcome to Token access: a HOTP email validator.",
+        "help":"See '/docs' for API documentation",
     }
 
 
@@ -129,18 +130,22 @@ def auth(func):
     return func
 
 
-@app.post("/{username}/")
+@app.get("/{username}/")
 @auth
 async def home(username:str):
     """Only returns a welcoming message.
     Used for connection-testing sake.
+
+    Args:
+        username (str): user email address
     """
-    return {"message": "Welcome " + username,
+    return {
+        "message": "Welcome " + username,
         "help":"See '/docs' for API documentation"
     }
 
 
-@app.post("/{username}/getConfig")
+@app.get("/{username}/getConfiguration")
 @auth
 async def home(username:str):
     """Returns server configurations useful for the client
@@ -154,17 +159,24 @@ async def home(username:str):
     Returns:
         json: The json of configuration fields
     """
-    return {"message": "Welcome " + username,
-        "help":"See '/docs' for API documentation"
+
+    return {
+        'window':int(context.GLOBAL['window']),
+        'context':{
+            'elliptic':context.elliptic,
+            'hash':context.hash,
+            'hotp':context.hotp,
+        },
     }
 
 
 @app.post("/{username}/generateHotpSeed")
 @auth
 async def generateHotpSeed(username:str, pubKey:str=Form()):
-    """Regenerate seed (PSK) for Hotp generation from the user public key & returns the generated PSK seed, 
-    the reinitialized counter and the server public key.
-    ! The previous token generated with the elder seed become lapsed.
+    """Regenerate seed (PSK) for Hotp generation from the user public key & 
+    returns the generated PSK seed, the reinitialized counter and the server 
+    public key.
+    ! The previous token generated with the elder seed become lapsed !
 
     Args:
         username (str): user email address.
@@ -195,7 +207,8 @@ async def generateHotpSeed(username:str, pubKey:str=Form()):
     )
 
     logger.debug('Returning public key and counter.')
-    return {"user": username,
+    return {
+        "user": username,
         "pubKey": serverPSK.exportPubKey(),
         "counter": counter,
     }
@@ -204,12 +217,21 @@ async def generateHotpSeed(username:str, pubKey:str=Form()):
 @app.get("/{username}/getCount")
 @auth
 async def getCount(username:str):
+    """Returns the counter value of user.
+
+    Args:
+        username (str): user email address
+
+    Returns:
+        json: formatted with {"username", "counter"}
+    """
     
     (_, counter) = database.getHotpData(
         userEmail=username,
     )
 
-    return {"username": username,
+    return {
+        "username": username,
         "counter": counter,
     }
 
@@ -217,13 +239,21 @@ async def getCount(username:str):
 @app.get("/{username}/getAllTokens")
 @auth
 async def getAllTokens(username:str):
+    """Returns all tokens for a specific user
+
+    Args:
+        username (str): user email address
+
+    Returns:
+        json: formatted with {"username",{"token":"sender"}}
+    """
     
     tokens = database.getAllTokensUser(
         userEmail=username,
     )
 
-    return {"username": username,
+    return {
+        "username": username,
         "tokens": dict((token, sender) for token, sender in tokens),
     }
-
 
