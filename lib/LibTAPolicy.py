@@ -15,7 +15,22 @@ __email__='charles.dubos@telecom-paris.fr'
 __status__='Development'
 
 
+
+# Module directives
+
+## Constants
+ALLOWED_BEHAVIORS = [
+    'RELAY', # relays the email as is
+    'SUBJECT_TAGGED_RELAY', # relays the email with adding a tag in subject
+    'FIELD_TAGGED_RELAY', # relays the email with adding a tag in tags
+    'REQUEST_TOKEN', # sends an automatic response requesting a token
+    'REFUSE', # Refuses the email
+    'DROP', # silently drops the email
+]
+
+
 # Functions
+
 def policy(sender:str, recipent: str, *args, **kwargs):
     """Function that agglomerates all the possible rules for a mail token request.
     This includes:

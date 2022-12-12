@@ -25,28 +25,57 @@ __email__='charles.dubos@telecom-paris.fr'
 __status__='Development'
 
 
+
 # Built-in
+
 from os import environ
 from abc import ABC, abstractmethod
 import sqlite3
 from logging import getLogger
+from xml.dom.minidom import parse as domParser
+
 
 
 # Other libs
+
 import mysql.connector
 
 
-# Owned libs
-from lib.LibTAServer import ParseXML
-
 
 # Module directives
+
 ## Load logger
-logger=getLogger('tknAcsAPI')
+logger=getLogger('tknAcsServers')
+logger.debug(f'Logger loaded in {__name__}')
 
 
 
 # Classes
+
+class ParseXML:
+    def __init__(self,xmlFile:str):
+        """Parses an XML file starting with a <command> data container.
+
+        Args:
+            xmlFile (str): xml filename to parse 
+        """
+        self._dom=domParser(file=xmlFile).getElementsByTagName('command')[0]
+    
+    def extract(self,path:str) -> str:
+        """Get the element of the parsed XML file.
+
+        Args:
+            path (str): Path to the wanted content separed with '/' 
+
+        Returns:
+            str: content of the precised path.
+        """
+        pathList = path.split(sep="/")
+        dom = self._dom
+        for domLevel in pathList:
+            dom = dom.getElementsByTagName(domLevel)[0]
+        return dom.firstChild.nodeValue
+
 
 ## SQL database abstract class
 class _SQLDB(ABC):
@@ -64,7 +93,7 @@ class _SQLDB(ABC):
             self.__setattr__(key, dbContext[key])
 
     
-    def _execSql(self, command:str, values:tuple):
+    def _execSql(self, command:str, values:tuple=()):
         logger.debug(f"{self._type}: executing command {command} with values {values}")
         self.cursor.execute(command, values)
 
@@ -75,7 +104,7 @@ class _SQLDB(ABC):
         return self.cursor.fetchone()
 
     
-    def _getAllSql(self, command:str, values:tuple) -> tuple:
+    def _getAllSql(self, command:str, values:tuple=()) -> tuple:
         logger.info(f"{self._type}: Requesting all results in DB.")
         self._execSql(command=command, values=values)
         return self.cursor.fetchall()
@@ -117,6 +146,16 @@ class _SQLDB(ABC):
             self._sqlCmd.extract("delete/tokenData"),
             (userEmail,)
         )
+
+    
+    def getUsers(self):
+        """Lists all users
+        Returns:
+            List: Users in database
+        """
+        return [ user[0] for user in self._getAllSql(
+            command=self._sqlCmd.extract("get/tokenData_user").splitlines()[1],
+        ) ]
 
 
     def isInDatabase(self, userEmail:str) -> bool:
@@ -252,7 +291,7 @@ class _SQLDB(ABC):
             pass
 
 
-## SQLITE3 database class
+## SQLITE3 database class connector & cursor
 class Sqlite3DB(_SQLDB):
     def __init__(self, sqlite3_path:str, **dbContext):
         """Creates a sqlite3 database connector & cursor.
@@ -268,7 +307,7 @@ class Sqlite3DB(_SQLDB):
         self._createTables()
 
 
-## MYSQL database class
+## MYSQL database class connector & cursor
 class MysqlDB(_SQLDB):
     def __init__(self, mysql_db:str, mysql_host:str, mysql_user:str, mysql_pass:str, **dbContext):
         """Creates a MySQL database connector & cursor.

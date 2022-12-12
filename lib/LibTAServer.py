@@ -4,7 +4,6 @@
 
 - EmailAdress class to parse email addresses
 - Context class to manage the configuration file
-- ParseXML class to parse XML librairies that containts SQL files
 """
 __author__='Charles Dubos'
 __license__='GNUv3'
@@ -15,62 +14,86 @@ __email__='charles.dubos@telecom-paris.fr'
 __status__='Development'
 
 
+
 # Built-in
+
 from configparser import ConfigParser
 from os.path import exists, expandvars
 from os import environ, popen
-from xml.dom.minidom import parse as domParser
 from logging import getLogger
 
 
-# Module directives
-## Load logger
-logger=getLogger('tknAcsAPI')
 
+# Owned libs
+
+import lib.LibTADatabase as dbManage
+
+
+
+# Module directives
+
+## Load logger
+logger=getLogger('tknAcsServers')
+logger.debug(f'Logger loaded in {__name__}')
 
 ## Constants
 CONFIG_FILE="${TKNACS_PATH}/tokenAccess.conf"
 
-
-DEFAULT_CONFIG="""
+DEFAULT_CONFIG="""\
 [GLOBAL]
+; This section gives common configuration items (for logging and HOTP, shared
+; between the API server, the SMTP server and eventually passed to the client).
+; window is the half-size of HOTP-window allowed by client researches.
 window=50
+; Logging elements, including file path and level.
 logging=${TKNACS_PATH}/tknAcs.log
 log_level=WARNING
 
 [WEB_API]
-; API host:port and SSL HTTPS connection parameters
+; API server listening host & port
 host=127.0.0.1
 port=8443
+; SSL key & certificate for HTTPS connection
 ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessAPI.key
 ssl_certfile=${TKNACS_PATH}/certs/TokenAccessAPI.pem
 
 [SMTP_SERVER]
+; SMTP server listening host & port
 host=127.0.0.1
-port=465
+port=2525
+; SSL key & certificate for SMTPS connection
 ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessSMTP.key
 ssl_certfile=${TKNACS_PATH}/certs/TokenAccessSMTP.pem
-
+; TLS server mode (STARTTLS for STARTTLS over SMTP or SSL for SMTPS)
+ssl_mode=SSL
 
 [DATABASE]
-; You can choose to use sqlite3 or mysql for database: 
+; You can use sqlite3 or mysql for user database.
 db_type=sqlite3
-
-; - SQLite3 is not recommended (no security on database), but easy to use
-; - mySQL is more powerfull. You need to install a database server
-;   On Debian, the installation can be done with 'apt install mariadb-server'
-;   Then you have to execute 'mysql_secure_installation'
-; SQLdatabase is the database file (sqlite) or name (mysql)
+; 
+;        -=SQLITE 3 CONFIGURATION=-
+;   SQLite3 is not recommended (no security on database content), but easy to
+;   use.
+; Sqlite3 works with a file. If this files does not exists, it creates it.
 sqlite3_path=${TKNACS_PATH}/tokenAccess.db
-
-; mysql-specific configurations
+; 
+;        -=MYSQL CONFIGURATION=-
+;   MySQL is more powerfull. However, you need to install a database server.
+;   On Linux, you can use mariadb-server. You should then execute 
+;   'mysql_secure_installation' for security sake.
+; Mysql connector needs a database name (automagically created if not exists)
+; and a hostname.
 mysql_db=tokenAccess
 mysql_host=localhost
+; You need also to give the user & pass to access database (root access not 
+; recommended).
 mysql_user=admin
 mysql_pass=Password
 
 
 [CRYPTO]
+; This section contains advanced cryptography configurations.
+; BE ATTENTIVE IF CHANGING THESE VALUES
 [elliptic]
 ; Elliptic curve must be supported by cryptography.hazmat.primitives.assymetric
 ; (x25519 or x448, default to x25519)
@@ -84,7 +107,11 @@ algorithm=SHA256
 [hotp]
 ; Length of HOTP in digits (default to 6)
 length=6
+
+; The ${TKNACS_PATH} environment variable is the current root directory, set by
+; the servers when launched. It can be used in all path variables
 """
+
 
 
 # Classes
@@ -92,7 +119,12 @@ length=6
 class EmailAddress:
     extensions=[]
     
-    def __init__(self, name:str=None, user:str=None, extensions:list=[], domain:str=None):
+    def __init__(
+        self,
+        name:str=None,
+        user:str=None,
+        extensions:list=[],
+        domain:str=None):
         """Parses e-mail adresses into user/extension/domain.
 
         Args:
@@ -107,7 +139,7 @@ class EmailAddress:
         self.domain=domain
 
     
-    def parser(self,address: str):
+    def parser(self, address: str):
         """Parses an email address given the folowing formats: 
         - user[+extension[s]]@domain.
         - displayedName<user+extensions@domain>.
@@ -182,35 +214,11 @@ class EmailAddress:
         return output
 
 
-class ParseXML:
-    def __init__(self,xmlFile:str):
-        """Parses an XML file starting with a <command> data container.
-
-        Args:
-            xmlFile (str): xml filename to parse 
-        """
-        self._dom=domParser(file=xmlFile).getElementsByTagName('command')[0]
-    
-    def extract(self,path:str) -> str:
-        """Get the element of the parsed XML file.
-
-        Args:
-            path (str): Path to the wanted content separed with '/' 
-
-        Returns:
-            str: content of the precised path.
-        """
-        pathList = path.split(sep="/")
-        dom = self._dom
-        for domLevel in pathList:
-            dom = dom.getElementsByTagName(domLevel)[0]
-        return dom.firstChild.nodeValue
-
-
 class Context:
     contexts=[
         'GLOBAL',
         'WEB_API',
+        'SMTP_SERVER',
         'DATABASE',
         'elliptic',
         'hash',
@@ -224,7 +232,7 @@ class Context:
             self.__setattr__(context, {})
 
 
-    def loadFromConfig(self,filename:str):
+    def loadConfig(self,filename:str):
         """Load specific contexts defined in configuration file, and save it in the
         contexts defined in this module.
 
@@ -251,6 +259,19 @@ class Context:
                     logger.debug(f'Resolving {resolEnvVar[key]}')
             self.__setattr__(context, resolEnvVar)
             logger.debug('\t\t{}'.format(self.__getattribute__(context)))
+
+    
+    def loadDatabase(self):
+        """Loads a database as specified in config and returns it.
+
+        Returns:
+            dbManage._SQLDB: database
+        """
+        db_type = self.DATABASE['db_type']
+        db_class = db_type.title() + 'DB'
+        logger.debug(f'Loading {db_type} database (instance of {db_class})')
+        return getattr(dbManage, db_class)(**self.DATABASE)
+
 
 
 # Late-defined directives

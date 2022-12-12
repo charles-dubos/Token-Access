@@ -28,10 +28,10 @@ from lib.LibTAServer import *
 
 
 # Module directives
+
 ## Creation of environment var for project & configuration loading
 environ['TKNACS_PATH'] = dirname(abspath(__file__))
-context.loadFromConfig(CONFIG_FILE)
-
+context.loadConfig(CONFIG_FILE)
 
 ## Creating specially-configured logger
 logging.config.dictConfig({
@@ -51,17 +51,19 @@ logging.config.dictConfig({
         },
     },
     'loggers':{
-        'tknAcsAPI':{
+        'tknAcsServers':{
             'handlers':['file_handler'],
             'level':context.GLOBAL['log_level'],
             'propagate':True
         }
     }
 })
-logger = logging.getLogger('tknAcsAPI')
+logger = logging.getLogger('tknAcsServers')
+logger.debug(f'Logger loaded in {__name__}')
 
 
 # Launcher
+
 if __name__=="__main__":
     logger.debug('Launching API server')
     uvicorn.run(

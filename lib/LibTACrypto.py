@@ -11,23 +11,28 @@ __email__='charles.dubos@telecom-paris.fr'
 __status__='Development'
 
 
+
 # Built-in
+
 from importlib import import_module
 from urllib.parse import unquote_to_bytes, quote_from_bytes
 import base64
 
 
+
 # Other libs
+
 from cryptography.hazmat.primitives.twofactor import hotp
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import twofactor, hashes, serialization
 
 
+
 # Classes
+
 ## PSK structure for ECDH
 class PreSharedKey:
     PSK=None
-
 
     def __init__(self, curve:str='x25519',base:str='b64',algorithm:str='SHA256'):
         """Create a structure for ECDH pre-shared key generation (HOTP seed).
@@ -135,6 +140,7 @@ class HashText:
 
 
 # Functions
+
 def getHotp(preSharedKey: str, count: int, base:str='b64', algorithm:str='SHA256', length:int=6) -> str:
     """Compute HOTP with the given arguments
 

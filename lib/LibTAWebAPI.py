@@ -15,39 +15,40 @@ __email__='charles.dubos@telecom-paris.fr'
 __status__='Development'
 
 
+
 # Built-in
+
 from logging import getLogger
 
 
+
 # Other libs
+
 from fastapi import FastAPI, HTTPException, Form
 
 
+
 # Owned libs
+
 from lib.LibTAServer import *
 from lib.LibTACrypto import getHotp, PreSharedKey
 import lib.LibTADatabase as dbManage
 from lib.LibTAPolicy import policy
 
 
+
 # Module directives
+
 ## Load logger
-logger=getLogger('tknAcsAPI')
+logger=getLogger('tknAcsServers')
+logger.debug(f'Logger loaded in {__name__}')
 
-
-## Loading database
-logger.debug('Opening {} database:'.format( context.DATABASE['db_type'] ))
-if context.DATABASE['db_type'] in ["sqlite3", "mysql"]:
-    database = getattr(
-        dbManage,
-        context.DATABASE['db_type'].title() + "DB"
-    )(**context.DATABASE)
-else:
-    raise FileNotFoundError
-
+## Load database
+database=context.loadDatabase()
 
 ## Definition of API
 app = FastAPI()
+
 
 
 # API functions
@@ -139,6 +140,11 @@ async def home(username:str):
     Args:
         username (str): user email address
     """
+    if not database.isInDatabase(userEmail=username):
+        raise HTTPException(
+            status_code=406,
+            detail="Policy not allowing this connection."
+        )
     return {
         "message": "Welcome " + username,
         "help":"See '/docs' for API documentation"

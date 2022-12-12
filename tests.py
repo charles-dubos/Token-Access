@@ -25,13 +25,12 @@ import logging.config
 # Owned libs
 from lib.LibTAServer import *
 import lib.LibTACrypto as cryptoFunc
-import lib.LibTADatabase as dbManage
 
 
 # Module directives
 ## Creation of environment var for project & configuration loading
 environ['TKNACS_PATH'] = dirname(abspath(__file__))
-context.loadFromConfig(CONFIG_FILE)
+context.loadConfig(CONFIG_FILE)
 context.DATABASE['sqlite3_path']='/tmp/tknAcsTest.db'
 context.DATABASE['mysql_db']='tknAcsTest'
 context.GLOBAL['logging']='TknAcsTest.log'
@@ -57,17 +56,18 @@ logging.config.dictConfig({
         },
     },
     'loggers':{
-        'tknAcsAPI':{
+        'tknAcsServers':{
             'handlers':['file_handler'],
             'level':context.GLOBAL['log_level'],
             'propagate':True
         }
     }
 })
-logger = logging.getLogger('tknAcsAPI')
+logger = logging.getLogger('tknAcsServers')
+logger.debug(f'Logger loaded in {__name__}')
 
 
-# Tests
+# Tests classes
 
 class tests_1_LibTAServer(unittest.TestCase):
 

@@ -12,31 +12,38 @@ __email__='charles.dubos@telecom-paris.fr'
 __status__='Development'
 
 
+
 # Built-in
+
 from os import environ, system
 from os.path import dirname, abspath, exists
 from inspect import signature
 from datetime import datetime, timedelta
 import logging.config, ipaddress
 
+
+
 # Other libs
+
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
 
 
+
 # Owned libs
-from lib.LibTAServer import * 
+
+from lib.LibTAServer import *
 from lib.LibTACrypto import HashText
-import lib.LibTADatabase as dbManage
+
 
 
 # Module directives
 
 ## Creation of environment var for project & configuration loading
 environ['TKNACS_PATH'] = dirname(abspath(__file__))
-context.loadFromConfig(CONFIG_FILE)
+context.loadConfig(CONFIG_FILE)
 
 ## Creating specially-configured logger for admin tasks 
 logging.config.dictConfig({
@@ -56,31 +63,23 @@ logging.config.dictConfig({
         },
     },
     'loggers':{
-        'tknAcsAPI':{
+        'tknAcsServers':{
             'handlers':['file_handler'],
             'level':'DEBUG',
             'propagate':True
         }
     }
 })
+logger = logging.getLogger('tknAcsServers')
+logger.debug(f'Logger loaded in {__name__}')
 
+# Loading database
+database= context.loadDatabase()
 
-## Load logger
-logger = logging.getLogger('tknAcsAPI')
-
-
-## Opening Database
-logger.debug('Opening {} database:'.format( context.DATABASE['db_type'] ))
-if context.DATABASE['db_type'] in ["sqlite3", "mysql"]:
-    database = getattr(
-        dbManage,
-        context.DATABASE['db_type'] + "DB"
-    )(**context.DATABASE)
-else:
-    raise FileNotFoundError
 
 
 # Functions
+
 class test:
     pass
 
@@ -117,20 +116,26 @@ def delUserInDb(userEmail:str):
     )
 
 
-def generateNewAPICert(
+def listUsersInDb():
+    """Lists all users of the database.
+    """
+    print(database.getUsers())
+
+
+def generateNewSelfSignedCert(
     context:dict,
     public_exponent:int=65537, key_size:int=2048,
     days:int=365):
-    """Generates a self-signed certificate for given context.
+    """Generates a self-signed certificate for a context.
     The context must have a host, a ssl_keyfile and a ssl_certfile.
 
     Args:
-        context (dict): context (WEB_API/SMTP)
+        context (dict): context (WEB_API/SMTP_SERVER)
         public_exponent (int): RSA exponent. Defaults to 65537.
         key_size (int): RSA key size. Defaults to 2048.
         days (int): validity from now of the certificate. Defaults to 365.
     """
-    
+
     logger.debug('Generating keypair')
     key = rsa.generate_private_key(
         public_exponent=public_exponent,
@@ -141,7 +146,7 @@ def generateNewAPICert(
     subject = issuer = x509.Name([
         x509.NameAttribute(NameOID.COMMON_NAME, context['host']),
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'TokenAccess'),
-        x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, 'API'),
+        x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, context.__name__),
     ])
     cert = x509.CertificateBuilder(
     ).subject_name(     subject
@@ -194,13 +199,14 @@ def generateNewAPICert(
     return cert
 
 
-print("""Hello admin!
 
-{intro}
-It includes:
+# Gentle intro when loading this lib...
+
+print("""\
+Hello admin!\n\n{intro}\nIt includes:
  - {funcs}""".format(
     intro=__doc__,
-    funcs="\n - ".join([ method + str(signature(globals()[method])) + ': ' + str(globals()[method].__doc__).splitlines()[0]
+    funcs="\n - ".join([ method + str(signature(globals()[method])) + ':\n\t' + str(globals()[method].__doc__).splitlines()[0]
         for method in globals()
             if not method.startswith('_') 
             and callable(globals()[method])
