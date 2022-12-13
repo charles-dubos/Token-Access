@@ -4,7 +4,7 @@ Impements unit tests for:
 - lib.LibTAServer
 - lib.LibTACrypto
 - lib.LibTADatabase
-- [TODO]lib.LibTAPolicy
+- [TODO]lib.LibTASmtp
 """
 __author__='Charles Dubos'
 __license__='GNUv3'

@@ -14,16 +14,13 @@ __status__='Development'
 
 # Built-in
 
-#import ssl
 from os import environ
 from os.path import dirname, abspath
 import logging.config
 
 
-
 # Owned libs
 from lib.LibTAServer import *
-from lib.LibTASmtp import launchSmtpServer
 
 
 
@@ -66,6 +63,7 @@ logging.config.dictConfig({
 logger = logging.getLogger('tknAcsServers')
 logger.debug(f'Logger loaded in {__name__}')
 
+
 ## Load database
 database=context.loadDatabase()
 
@@ -74,6 +72,7 @@ database=context.loadDatabase()
 # Launcher
 
 if __name__=="__main__":
+    from lib.LibTASmtp import launchSmtpServer
 
     logger.debug('Launching SMTP server...')
-    launchSmtpServer(**context.SMTP_SERVER)
+    launchSmtpServer(**context.SMTP_SERVER, **context.SMTP_MDA)

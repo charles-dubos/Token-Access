@@ -49,6 +49,7 @@ window=50
 logging=${TKNACS_PATH}/tknAcs.log
 log_level=WARNING
 
+
 [WEB_API]
 ; API server listening host & port
 host=127.0.0.1
@@ -56,6 +57,7 @@ port=8443
 ; SSL key & certificate for HTTPS connection
 ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessAPI.key
 ssl_certfile=${TKNACS_PATH}/certs/TokenAccessAPI.pem
+
 
 [SMTP_SERVER]
 ; SMTP server listening host & port
@@ -66,6 +68,16 @@ ssl_keyfile=${TKNACS_PATH}/certs/TokenAccessSMTP.key
 ssl_certfile=${TKNACS_PATH}/certs/TokenAccessSMTP.pem
 ; TLS server mode (STARTTLS for STARTTLS over SMTP or SSL for SMTPS)
 ssl_mode=SSL
+; The behavior sets what to do if no or bad token given, it can be:
+; RELAY, SUBJECT_TAGGED_RELAY, FIELD_TAGGED_RELAY, REQUEST_TOKEN, REFUSE, DROP
+behavior=RELAY
+
+[SMTP_MDA]
+; SMTP mail delivery agent to forward the validated incoming messages.
+; If None, only displays the message and don't relays it to a MDA...
+mda_host=None
+mda_port=None
+
 
 [DATABASE]
 ; You can use sqlite3 or mysql for user database.
@@ -107,6 +119,7 @@ algorithm=SHA256
 [hotp]
 ; Length of HOTP in digits (default to 6)
 length=6
+
 
 ; The ${TKNACS_PATH} environment variable is the current root directory, set by
 ; the servers when launched. It can be used in all path variables
@@ -219,6 +232,7 @@ class Context:
         'GLOBAL',
         'WEB_API',
         'SMTP_SERVER',
+        'SMTP_MDA',
         'DATABASE',
         'elliptic',
         'hash',

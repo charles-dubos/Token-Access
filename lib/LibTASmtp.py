@@ -22,28 +22,48 @@ import asyncio, ssl
 # Other libs
 from aiosmtpd.controller import Controller
 from aiosmtpd.smtp import SMTP
-from aiosmtpd.handlers import Debugging
+from aiosmtpd.handlers import Proxy
 
 
 
 # Owned libs
 
-import lib.LibTADatabase as dbManage
-from lib.LibTAServer import EmailAddress
+from lib.LibTAServer import *
 
 
 
 # Module directives
 
+## Constants
+ALLOWED_BEHAVIORS = {
+    'RELAY': 'TransparentRelay', # relays the email as is
+    # 'SUBJECT_TAGGED_RELAY': SubjectTagRelay, # relays the email with adding a tag in subject
+    # 'FIELD_TAGGED_RELAY': FieldTagRelay, # relays the email with adding a tag in tags
+    'REQUEST_TOKEN': 'ResponseRefuse', # response with an automatic message requesting a token
+    'REFUSE': 'BasicRefuse', # Refuses the email with error 550
+    # 'DROP': DropRefuse, # silently drops the email
+}
+## RFC 5321-compliant responses codes
+OK='250 OK'
+OKNOTOKEN='251-Message relayed with no token\r\n251 Next time, please request a HOTP token'
+ERRUNAVAILABLE='550 Mailbox not found'
+ERRNOTOKEN='553-Policy does not allow direct access to Mailbox\r\n553 Please request a valid HOTP token'
+ERRBADTOKEN='553-Invalid token\r\n553 Please request a valid HOTP token'
+
 ## Load logger
 logger=getLogger('tknAcsServers')
 logger.debug(f'Logger loaded in {__name__}')
+
+## Load database
+database=context.loadDatabase()
 
 
 
 # Classes
 
-class TknAcsHandler(Debugging):
+class TknAcsRelay(Proxy):
+    validity = None
+
     async def handle_RCPT(
         self,
         server,
@@ -55,30 +75,125 @@ class TknAcsHandler(Debugging):
             logger.debug(f'Recieving msg to {address}')
             rcptAddress=EmailAddress().parser(
                 address=address)
-            hotp = rcptAddress.extensions[0]
-            logger.debug(f"HOTP: {str(hotp)}")
+            hotp = None if not rcptAddress.extensions else rcptAddress.extensions[0]
+
+            logger.debug(f"User: {rcptAddress.getEmailAddr()}")
+            logger.debug(f"HOTP: {type(hotp)}")
+
+            # Checks that users belongs to the domain
+            assert database.isInDatabase(userEmail=rcptAddress.getEmailAddr()),\
+                ERRUNAVAILABLE
+
+            # Checks that there is this token for this user and this sender
+            if hotp:
+                self.validity = database.isTokenValid(
+                    userEmail=rcptAddress.getEmailAddr(),
+                    sender=envelope.mail_from,
+                    token=hotp)
+
         except Exception as e:
             logger.debug(repr(e))
-            return '550 not relaying to that domain'
+            return e
         envelope.rcpt_tos.append(address)
-        return '250 OK'
+        return OK
 
     async def handle_DATA(
         self,
         server,
         session,
         envelope):
-        print('Message from %s' % envelope.mail_from)
-        print('Message options %s' % str(envelope.mail_options))
-        print('Message for %s' % envelope.rcpt_tos)
-        print('Message data:\n')
-        for ln in envelope.content.decode('utf8', errors='replace').splitlines():
-            print(f'> {ln}'.strip())
-        print()
-        print('End of message')
+        if self._hostname == 'None':
+            print('Message from %s' % envelope.mail_from)
+            print('Message options %s' % str(envelope.mail_options))
+            print('Message for %s' % envelope.rcpt_tos)
+            print('Message data:\n')
+            for ln in envelope.content.decode('utf8', errors='replace').splitlines():
+                print(f'> {ln}'.strip())
+            print()
+            print('End of message')
 
-        # Checks database user
-        return '250 Message accepted for delivery'
+            return '250 Message accepted for delivery'
+        else:
+            await super().handle_DATA(
+                server=server,
+                session=session,
+                envelope=envelope,
+            )
+
+
+class TransparentRelay(TknAcsRelay):
+    """This handler class relays the message.
+    It only logs that the message has no token, and respond with a 251 error
+    code instead of 250.
+    """
+    
+    async def handle_DATA(
+        self,
+        server,
+        session,
+        envelope):
+        await super().handle_DATA(
+            server=server,
+            session=session,
+            envelope=envelope)
+
+        if not self.validity:
+            logger.info(f'Msg from {envelope.mail_from} to {envelope.rcpt_tos} accepted with no token')
+        
+        return OK if self.validity else OKNOTOKEN
+
+
+class ResponseRefuse(TknAcsRelay):
+    """This handler class refuses the message if bad or no token with an 
+    explicit response.
+    """
+    async def handle_RCPT(
+        self,
+        server,
+        session,
+        envelope,
+        address,
+        rcpt_options):
+
+        await super().handle_RCPT(
+            server=server,
+            session=session,
+            envelope=envelope,
+            address=address,
+            rcpt_options=rcpt_options)
+
+        if self.validity:
+            envelope.rcpt_tos.append(address)
+            return OK
+        else:
+            logger.info(f'553: Refusing message from {envelope.mail_from} to {envelope.rcpt_tos}')
+            return ERRNOTOKEN if self.validity is None else ERRBADTOKEN
+
+
+class BasicRefuse(TknAcsRelay):
+    """This handler class refuses the message with a 550 unavailable response.
+    """
+    async def handle_RCPT(
+        self,
+        server,
+        session,
+        envelope,
+        address,
+        rcpt_options):
+
+        await super().handle_RCPT(
+            server=server,
+            session=session,
+            envelope=envelope,
+            address=address,
+            rcpt_options=rcpt_options)
+
+        if self.validity:
+            envelope.rcpt_tos.append(address)
+            return OK
+        else:
+            logger.info(f'550:Refusing message from {envelope.mail_from} to {envelope.rcpt_tos}')
+            return ERRUNAVAILABLE
 
 
 
@@ -87,14 +202,22 @@ class TknAcsHandler(Debugging):
 def launchSmtpServer(
     host:str,
     port:str,
+    mda_host:str,
+    mda_port:str,
     ssl_certfile=None,
     ssl_keyfile=None,
     ssl_mode=None,
+    behavior='REQUEST_TOKEN',
     **kwargs):
     port = int(port)
 
+    logger.debug(f'Using handler {behavior}')
+
     ctrlKwargs = {
-        'handler':  TknAcsHandler(),
+        'handler':  (globals()[ALLOWED_BEHAVIORS[behavior]])(
+            remote_hostname=mda_host, 
+            remote_port=mda_port,
+        ),
         'hostname': host,
         'port':     port,
     }
