@@ -35,7 +35,7 @@ context.DATABASE['sqlite3_path']='/tmp/tknAcsTest.db'
 context.DATABASE['mysql_db']='tknAcsTest'
 context.GLOBAL['logging']='TknAcsTest.log'
 context.GLOBAL['log_level']='DEBUG'
-USERTEST="toto@example.com"
+USERTEST="Toto@example.com"
 SENDERTEST="sender@other.com"
 
 ## Creating specially-configured logger
@@ -98,14 +98,15 @@ class tests_1_LibTAServer(unittest.TestCase):
         """
         email1 = EmailAddress()
         email2 = EmailAddress()
-        email1.parser("toto@test.com")
-        email2.parser("testing it<toto+testDextension@test.com>")
+        email1.parser("Toto@test.com")
+        email2.parser("testing it<Toto+testDextension@test.com>")
         self.assertEqual(email1.user, email2.user)
         self.assertEqual(email1.domain, email2.domain)
         self.assertEqual(email2.displayedName, "testing it")
         self.assertListEqual(email2.extensions, ["testDextension"])
-        self.assertEqual(email2.getEmailAddr(), "toto@test.com")
-        self.assertEqual(email2.getFullAddr(enableExt=True), "testing it<toto+testDextension@test.com>")
+        self.assertEqual(email2.getEmailAddr(), "Toto@test.com")
+        self.assertEqual(email2.getFullAddr(withExt=True), "testing it<Toto+testDextension@test.com>")
+        self.assertEqual(email2.getEmailAddr(lowerCase=True), "toto@test.com")
 
         self.assertRaises(SyntaxError, email2.parser, 'FalseAddressError')
         self.assertRaises(SyntaxError, email2.parser, 'bad constructed address <test@toto.com')

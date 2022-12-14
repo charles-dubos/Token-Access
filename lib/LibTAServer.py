@@ -190,11 +190,12 @@ class EmailAddress:
         return self
 
     
-    def getEmailAddr(self, enableExt=False) -> str:
+    def getEmailAddr(self, withExt=False, lowerCase=False) -> str:
         """Returns the email address with format user[+extensions]@domain
 
         Args:
-            enableExt (bool, optional): Return the address with extensions. Defaults to False.
+            withExt (bool, optional): Return the address with extensions. Defaults to False.
+            lowerCase (bool, optionnal): Return the address in lowercase. Defaults to False.
 
         Raises:
             TypeError: Domain or user not given
@@ -205,23 +206,24 @@ class EmailAddress:
         if self.user is None or self.domain is None:
             raise TypeError("user and domain cannot be 'None'")
         output = self.user
-        if enableExt:
+        if withExt:
             for extension in self.extensions:
                 output = output + "+" + extension
         output = output + "@" + self.domain
-        return output
+        return output.lower() if lowerCase else output
 
     
-    def getFullAddr(self, enableExt=False) -> str:
+    def getFullAddr(self, withExt=False, lowerCase=False) -> str:
         """Returns email address formatted with displayed name if exists (displayedName <user@domain>).
 
         Args:
-            enableExt (bool, optional): Eanbles extensions in returned address. Defaults to False.
+            withExt (bool, optional): Eanbles extensions in returned address. Defaults to False.
+            lowerCase (bool, optionnal): Return the address in lowercase. Defaults to False.
 
         Returns:
             str: the email address
         """
-        output = self.getEmailAddr(enableExt=enableExt)
+        output = self.getEmailAddr(withExt=withExt, lowerCase=lowerCase)
         if self.displayedName is not None:
             output = self.displayedName + "<" + output + ">"
         return output
