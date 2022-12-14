@@ -45,10 +45,13 @@ ALLOWED_BEHAVIORS = {
 }
 ## RFC 5321-compliant responses codes
 OK='250 OK'
-OKNOTOKEN='251-Message relayed with no token\r\n251 Next time, please request a HOTP token'
+OKNOTOKEN='251-Message relayed with no token\r\n'\
+    '251 Next time, please request a HOTP token'
 ERRUNAVAILABLE='550 Mailbox not found'
-ERRNOTOKEN='553-Policy does not allow direct access to Mailbox\r\n553 Please request a valid HOTP token'
-ERRBADTOKEN='553-Invalid token\r\n553 Please request a valid HOTP token'
+ERRNOTOKEN='553-Policy does not allow direct access to Mailbox\r\n'\
+    '553 Please request a valid HOTP token'
+ERRBADTOKEN='553-Invalid token\r\n'\
+    '553 Please request a valid HOTP token'
 
 ## Load logger
 logger=getLogger('tknAcsServers')
@@ -75,12 +78,13 @@ class TknAcsRelay(Proxy):
             logger.debug(f'Recieving msg to {address}')
             rcptAddress=EmailAddress().parser(
                 address=address)
-            hotp = None if not rcptAddress.extensions else rcptAddress.extensions[0]
+            hotp = None if not rcptAddress.extensions \
+                    else rcptAddress.extensions[0]
 
             logger.debug(f"User: {rcptAddress.getEmailAddr()}")
             logger.debug(f"HOTP: {type(hotp)}")
 
-            # Checks that users belongs to the domain
+            # Checks that users belongs to the server
             assert database.isInDatabase(userEmail=rcptAddress.getEmailAddr()),\
                 ERRUNAVAILABLE
 
@@ -138,7 +142,8 @@ class TransparentRelay(TknAcsRelay):
             envelope=envelope)
 
         if not self.validity:
-            logger.info(f'Msg from {envelope.mail_from} to {envelope.rcpt_tos} accepted with no token')
+            logger.info(f'Msg from {envelope.mail_from} '
+                f'to {envelope.rcpt_tos} accepted with no token')
         
         return OK if self.validity else OKNOTOKEN
 
@@ -166,7 +171,8 @@ class ResponseRefuse(TknAcsRelay):
             envelope.rcpt_tos.append(address)
             return OK
         else:
-            logger.info(f'553: Refusing message from {envelope.mail_from} to {envelope.rcpt_tos}')
+            logger.info(f'553: Refusing message from {envelope.mail_from}'
+                f' to {envelope.rcpt_tos}')
             return ERRNOTOKEN if self.validity is None else ERRBADTOKEN
 
 
@@ -192,7 +198,8 @@ class BasicRefuse(TknAcsRelay):
             envelope.rcpt_tos.append(address)
             return OK
         else:
-            logger.info(f'550:Refusing message from {envelope.mail_from} to {envelope.rcpt_tos}')
+            logger.info(f'550:Refusing message from {envelope.mail_from} '
+                f'to {envelope.rcpt_tos}')
             return ERRUNAVAILABLE
 
 
@@ -224,7 +231,8 @@ def launchSmtpServer(
 
     ActiveController = Controller
     if ssl_mode in ['SSL', 'STARTTLS']:
-        assert exists(ssl_certfile) and exists(ssl_keyfile), 'No SSL keys find'
+        assert exists(ssl_certfile) and exists(ssl_keyfile), \
+            'No SSL keys find'
         logger.debug('SSL Context identified for SMTP')
 
         sslContext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)

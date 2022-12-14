@@ -75,7 +75,7 @@ async def requestToken(sender: str, recipient: str):
 
     Raises:
         ValueError (HTTP/418): Bad email address
-        PermissionError (HTTP/406): Recorded inner policy not allowing this connection 
+        PermissionError (HTTP/406): Policy not allowing the connection 
 
     Returns:
         json: formatted with {"token","allowed_for": {"from", "to"}}

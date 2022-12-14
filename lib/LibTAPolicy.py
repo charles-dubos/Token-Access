@@ -30,7 +30,9 @@ def policy(sender:str, recipent: str, *args, **kwargs):
     """
 
     def _innerPolicy(*args, **kwargs):
-        """Represents the agreement process for the SMTP server side, depending mainly on the sender and its domain name.
+        """Represents the agreement process for the SMTP server side, depending 
+        mainly on the sender and its domain name.
+        
         It includes (not exhaustibly):
         - The sender domain trust
         - The sender trust

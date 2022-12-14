@@ -143,7 +143,7 @@ class EmailAddress:
         Args:
             name (str, optional): Displayed name. Defaults to None.
             user (str, optional): email address user. Defaults to None.
-            extensions (list, optional): email adress extensions. Defaults to empty list.
+            extensions (list, optional): adress extensions. Defaults to [].
             domain (str, optional): email adress domain. Defaults to None.
         """
         self.displayedName=name
@@ -159,9 +159,6 @@ class EmailAddress:
 
         Args:
             address (str): e-mail address (explicit or with <>delimiters)
-
-        Raises:
-            SyntaxError: Unexploitable string syntax
 
         Returns:
             EmailAdress: object containing
@@ -194,17 +191,14 @@ class EmailAddress:
         """Returns the email address with format user[+extensions]@domain
 
         Args:
-            withExt (bool, optional): Return the address with extensions. Defaults to False.
-            lowerCase (bool, optionnal): Return the address in lowercase. Defaults to False.
-
-        Raises:
-            TypeError: Domain or user not given
+            withExt (bool, optional): Enables extensions. Defaults to False.
+            lowerCase (bool, optionnal): Force lowercase. Defaults to False.
 
         Returns:
             str: email address
         """
         if self.user is None or self.domain is None:
-            raise TypeError("user and domain cannot be 'None'")
+            raise TypeError('user and domain cannot be "None"')
         output = self.user
         if withExt:
             for extension in self.extensions:
@@ -214,11 +208,12 @@ class EmailAddress:
 
     
     def getFullAddr(self, withExt=False, lowerCase=False) -> str:
-        """Returns email address formatted with displayed name if exists (displayedName <user@domain>).
+        """Returns email address formatted with displayed name if exists
+        (displayedName <user@domain>).
 
         Args:
-            withExt (bool, optional): Eanbles extensions in returned address. Defaults to False.
-            lowerCase (bool, optionnal): Return the address in lowercase. Defaults to False.
+            withExt (bool, optional): Enables extensions. Defaults to False.
+            lowerCase (bool, optionnal): Force lowercase. Defaults to False.
 
         Returns:
             str: the email address
@@ -249,8 +244,8 @@ class Context:
 
 
     def loadConfig(self,filename:str):
-        """Load specific contexts defined in configuration file, and save it in the
-        contexts defined in this module.
+        """Load specific contexts defined in configuration file, and save it
+        in the contexts defined in this module.
 
         Args:
             filename (str): path name of config file.
@@ -281,7 +276,7 @@ class Context:
         """Loads a database as specified in config and returns it.
 
         Returns:
-            dbManage._SQLDB: database
+            LibTADatabase._SQLDB: database
         """
         db_type = self.DATABASE['db_type']
         db_class = db_type.title() + 'DB'

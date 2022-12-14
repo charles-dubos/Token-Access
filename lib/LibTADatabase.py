@@ -94,7 +94,8 @@ class _SQLDB(ABC):
 
     
     def _execSql(self, command:str, values:tuple=()):
-        logger.debug(f"{self._type}: executing command {command} with values {values}")
+        logger.debug(f'{self._type}: executing command {command} '
+            f'with values {values}')
         self.cursor.execute(command, values)
 
 

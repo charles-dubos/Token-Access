@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #- *- coding:utf-8 -*-
 """This library provides functionalities for Token Access server-side actions.
-It impements administrative functions for SMTP and API servers, after loading configuration.
+It impements administrative functions for SMTP and API servers,
+after loading configuration.
 """
 __author__='Charles Dubos'
 __license__='GNUv3'
@@ -104,8 +105,10 @@ def delUserInDb(userEmail:str):
     """
     tokens = database.getAllTokensUser(userEmail=userEmail)
 
+    if tokens:
+        logger.warning(f'While deleting user {user}:\n')
     for (token, sender) in tokens:
-        logger.warning(f"Deleting user {user}: Removing {token} requested by {sender}")
+        logger.warning(f'\tRemoving {token} requested by {sender}')
         database.deleteToken(
             userEmail=userEmail,
             token=token,
@@ -114,27 +117,31 @@ def delUserInDb(userEmail:str):
     database.delUser(
         userEmail=userEmail,
     )
+    logger.debug(f'User {userEmail} removed from database')
 
 
 def listUsersInDb():
     """Lists all users of the database.
     """
-    print(database.getUsers())
+    return database.getUsers()
 
 
-def generateNewSelfSignedCert(
-    context:dict,
+def newSelfSignedCert(
+    contextStr:str,
     public_exponent:int=65537, key_size:int=2048,
     days:int=365):
     """Generates a self-signed certificate for a context.
     The context must have a host, a ssl_keyfile and a ssl_certfile.
 
     Args:
-        context (dict): context (WEB_API/SMTP_SERVER)
+        contextStr (str): context (WEB_API/SMTP_SERVER)
         public_exponent (int): RSA exponent. Defaults to 65537.
         key_size (int): RSA key size. Defaults to 2048.
-        days (int): validity from now of the certificate. Defaults to 365.
+        days (int): validity in days from now. Defaults to 365.
     """
+
+    logger.debug('Collecting context')
+    certContext = context.__getattribute__(contextStr)
 
     logger.debug('Generating keypair')
     key = rsa.generate_private_key(
@@ -144,9 +151,9 @@ def generateNewSelfSignedCert(
 
     logger.debug('Populating certificate & self-signing')
     subject = issuer = x509.Name([
-        x509.NameAttribute(NameOID.COMMON_NAME, context['host']),
+        x509.NameAttribute(NameOID.COMMON_NAME, certContext['host']),
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'TokenAccess'),
-        x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, context.__name__),
+        x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, contextStr),
     ])
     cert = x509.CertificateBuilder(
     ).subject_name(     subject
@@ -170,17 +177,20 @@ def generateNewSelfSignedCert(
         encoding=serialization.Encoding.PEM
     )
 
+    logger.debug('Checking existing certificate')
     print(f'{str(cert)} generated.')
-    if exists(context['ssl_keyfile']) \
-    or exists(context['ssl_certfile']):
-        if input('{ssl_keyfile} or {ssl_certfile} already exists, overwrite it? (yes/no)'.format(
-            ssl_keyfile=context['ssl_keyfile'],
-            ssl_certfile=context['ssl_certfile'],
-        ))!='yes':
-            return
+    if exists(certContext['ssl_keyfile']) \
+    or exists(certContext['ssl_certfile']):
+        if input('{ssl_keyfile} or {ssl_certfile} already exists, '
+            'overwrite it? (yes/no)'.format(
+                ssl_keyfile=certContext['ssl_keyfile'],
+                ssl_certfile=certContext['ssl_certfile'],
+            )
+        )!='yes':
+            raise UserWarning('No certificate changes done')
 
     logger.debug('Exporting private key')
-    with open(context['ssl_keyfile'], mode='wb') as fd:
+    with open(certContext['ssl_keyfile'], mode='wb') as fd:
         fd.write(
             key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -189,13 +199,13 @@ def generateNewSelfSignedCert(
             )
         )
 
-    logger.debug('Exporting certificate')
-    with open(context['ssl_certfile'], mode='wb') as fd:
+    logger.debug('Exporting public certificate')
+    with open(certContext['ssl_certfile'], mode='wb') as fd:
         fd.write(
             cert.public_bytes(encoding=serialization.Encoding.PEM)
         )
 
-    print('Relaunch the server to update certificates.')
+    print('Please relaunch the server to update certificates.')
     return cert
 
 
