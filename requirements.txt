@@ -8,4 +8,5 @@ python-multipart
 uvicorn
 
 # SMTP server dependances
+requests
 aiosmtpd

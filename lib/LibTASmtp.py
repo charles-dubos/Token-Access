@@ -23,6 +23,7 @@ import asyncio, ssl
 from aiosmtpd.controller import Controller
 from aiosmtpd.smtp import SMTP
 from aiosmtpd.handlers import Proxy
+from requests import get as getRequest
 
 
 
@@ -39,7 +40,8 @@ ALLOWED_BEHAVIORS = {
     'RELAY': 'TransparentRelay', # relays the email as is
     # 'SUBJECT_TAGGED_RELAY': SubjectTagRelay, # relays the email with adding a tag in subject
     # 'FIELD_TAGGED_RELAY': FieldTagRelay, # relays the email with adding a tag in tags
-    'REQUEST_TOKEN': 'ResponseRefuse', # response with an automatic message requesting a token
+    'REQUEST': 'RequestToken', # request a token for user
+    'REFUSE553': 'ResponseRefuse', # response with an automatic message requesting a token
     'REFUSE': 'BasicRefuse', # Refuses the email with error 550
     # 'DROP': DropRefuse, # silently drops the email
 }
@@ -87,13 +89,26 @@ class TknAcsRelay(Proxy):
             # Checks that users belongs to the server
             assert database.isInDatabase(userEmail=rcptAddress.getEmailAddr()),\
                 ERRUNAVAILABLE
-
+            
             # Checks that there is this token for this user and this sender
             if hotp:
                 self.validity = database.isTokenValid(
                     userEmail=rcptAddress.getEmailAddr(),
                     sender=envelope.mail_from,
-                    token=hotp)
+                    token=hotp
+                )
+                
+                if self.validity:
+                    logger.info('Purging {userEmail} from used {token}'.format(
+                        userEmail=rcptAddress.getEmailAddr(),
+                        token=hotp,
+                    ))
+                    database.deleteToken(
+                        userEmail=rcptAddress.getEmailAddr(),
+                        token=hotp,
+                    )
+            else:
+                self.validity = False
 
         except Exception as e:
             logger.debug(repr(e))
@@ -107,6 +122,7 @@ class TknAcsRelay(Proxy):
         session,
         envelope):
         if self._hostname == 'None':
+            # Remove consummed TOKEN
             print('Message from %s' % envelope.mail_from)
             print('Message options %s' % str(envelope.mail_options))
             print('Message for %s' % envelope.rcpt_tos)
@@ -136,7 +152,7 @@ class TransparentRelay(TknAcsRelay):
         server,
         session,
         envelope):
-        await super().handle_DATA(
+        supResp = await super().handle_DATA(
             server=server,
             session=session,
             envelope=envelope)
@@ -145,7 +161,7 @@ class TransparentRelay(TknAcsRelay):
             logger.info(f'Msg from {envelope.mail_from} '
                 f'to {envelope.rcpt_tos} accepted with no token')
         
-        return OK if self.validity else OKNOTOKEN
+        return supResp if self.validity else OKNOTOKEN
 
 
 class ResponseRefuse(TknAcsRelay):
@@ -160,7 +176,7 @@ class ResponseRefuse(TknAcsRelay):
         address,
         rcpt_options):
 
-        await super().handle_RCPT(
+        supResp = await super().handle_RCPT(
             server=server,
             session=session,
             envelope=envelope,
@@ -168,8 +184,7 @@ class ResponseRefuse(TknAcsRelay):
             rcpt_options=rcpt_options)
 
         if self.validity:
-            envelope.rcpt_tos.append(address)
-            return OK
+            return supResp
         else:
             logger.info(f'553: Refusing message from {envelope.mail_from}'
                 f' to {envelope.rcpt_tos}')
@@ -187,7 +202,7 @@ class BasicRefuse(TknAcsRelay):
         address,
         rcpt_options):
 
-        await super().handle_RCPT(
+        supResp = await super().handle_RCPT(
             server=server,
             session=session,
             envelope=envelope,
@@ -195,13 +210,76 @@ class BasicRefuse(TknAcsRelay):
             rcpt_options=rcpt_options)
 
         if self.validity:
-            envelope.rcpt_tos.append(address)
-            return OK
+            return supResp
         else:
             logger.info(f'550:Refusing message from {envelope.mail_from} '
                 f'to {envelope.rcpt_tos}')
             return ERRUNAVAILABLE
 
+
+class RequestToken(TknAcsRelay):
+    """This handle class automatically requests a token for the incoming message
+    if no token in email recipient. 
+    """
+    async def handle_RCPT(
+        self,
+        server,
+        session,
+        envelope,
+        address,
+        rcpt_options):
+
+        supResp = await super().handle_RCPT(
+            server=server,
+            session=session,
+            envelope=envelope,
+            address=address,
+            rcpt_options=rcpt_options)
+        
+        recipient = EmailAddress().parser(address=envelope.rcpt_tos[0])
+
+        if self.validity:
+            return supResp
+        elif self.validity == None \
+            or len(recipient.extensions)!=0:
+            logger.info(f'550:Refusing message from {envelope.mail_from} '
+                f'to {recipient.getEmailAddr()}')
+            return ERRUNAVAILABLE
+        else:
+            logger.debug('Request token to WebAPI')
+            try:
+                token = getRequest(
+                    url= 'http{ssl}://{host}{port}/requestToken'.format(
+                        ssl='s' if exists(context.WEB_API['ssl_certfile']) else '',
+                        host=context.WEB_API['host'],
+                        port=(':{}'.format(context.WEB_API['port']))\
+                            if context.WEB_API['port'] else '',
+                    ),
+                    params = {
+                        'sender':envelope.mail_from,
+                        'recipient':address,
+                    },
+                    verify=context.WEB_API['ssl_certfile']\
+                        if exists(context.WEB_API['ssl_certfile']) else False,
+                ).json()['token']
+                logger.debug(f'Got {token}')
+                newAddress = EmailAddress().parser(address=address)
+                newAddress.extensions.insert(0, token)
+                envelope.rcpt_tos = [
+                    newAddress.getEmailAddr(withExt=True)
+                ]
+                logger.debug(f'New address generated: {newAddress.getEmailAddr(withExt=True)}')
+                logger.info('Purging {userEmail} from used {token}'.format(
+                    userEmail=newAddress.getEmailAddr(withExt=False),
+                    token=token,
+                ))
+                database.deleteToken(
+                    userEmail=newAddress.getEmailAddr(withExt=False),
+                    token=token,
+                )
+                return OKNOTOKEN
+            except:
+                return ERRBADTOKEN
 
 
 # Functions

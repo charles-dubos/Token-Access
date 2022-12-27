@@ -70,7 +70,7 @@ if __name__=="__main__":
         "lib.LibTAWebAPI:app",
         host=context.WEB_API['host'],
         port=int(context.WEB_API['port']),
-        reload=False,
+        reload=True,
         ssl_keyfile=context.WEB_API["ssl_keyfile"],
         ssl_certfile=context.WEB_API["ssl_certfile"],
     )

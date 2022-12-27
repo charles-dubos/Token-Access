@@ -268,6 +268,9 @@ class Context:
                 if value.find('$') != -1:
                     resolEnvVar[key]=expandvars(value)
                     logger.debug(f'Resolving {resolEnvVar[key]}')
+                elif value.isdigit():
+                    logger.debug(f'Converting {resolEnvVar[key]}')
+                    resolEnvVar[key]=int(value)
             self.__setattr__(context, resolEnvVar)
             logger.debug('\t\t{}'.format(self.__getattribute__(context)))
 

@@ -81,10 +81,6 @@ database= context.loadDatabase()
 
 # Functions
 
-class test:
-    pass
-
-
 def addUserInDb(userEmail:str):
     """Adds a user to the database
 

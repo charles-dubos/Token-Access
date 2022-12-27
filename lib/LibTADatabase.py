@@ -249,7 +249,7 @@ class _SQLDB(ABC):
             (sender, userEmail, token)
         )
         self._setSql(
-            self._sqlCmd.extract("reset/tokendata_count"),
+            self._sqlCmd.extract("reset/tokenData_count"),
             (counter + 1, userEmail)
         )
 
@@ -328,7 +328,7 @@ class MysqlDB(_SQLDB):
             password=mysql_pass,
         )
 
-        self.cursor = self.connector.cursor()
+        self.cursor = self.connector.cursor(buffered=True)
         self.cursor.execute("CREATE DATABASE IF NOT EXISTS %s" % mysql_db)
 
         self.cursor.execute("USE %s" % mysql_db)

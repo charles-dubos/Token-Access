@@ -62,6 +62,8 @@ async def root():
     return {
         "message": "Welcome to Token access: a HOTP email validator.",
         "help":"See '/docs' for API documentation",
+        "version":__version__,
+        "status":__status__
     }
 
 
@@ -102,7 +104,7 @@ async def requestToken(sender: str, recipient: str):
         database.setSenderTokenUser(
             userEmail=recipientAddr.getEmailAddr(), 
             sender=sender, 
-            count= count,
+            counter= count,
             token=hotp,
         )
 

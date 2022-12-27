@@ -56,10 +56,10 @@
             UPDATE tokenData SET psk=?, count=?
                 WHERE user=?
         </tokenData_psk-count>
-        <tokendata_count>
-            UPDATE tokendata SET count=?
+        <tokenData_count>
+            UPDATE tokenData SET count=?
                 WHERE user=? 
-        </tokendata_count>
+        </tokenData_count>
     </reset>
     <delete>
         <tokenData>
